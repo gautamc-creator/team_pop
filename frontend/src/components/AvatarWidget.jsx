@@ -32,7 +32,7 @@ export default function AvatarWidget() {
     // --- INTERACTION HANDLER (The Brain) ---
     const handleInteraction = () => {
         // A. "Warm up" audio engine
-        audioPlayerRef.current.play().catch(() => { });
+        // audioPlayerRef.current.play().catch(() => { });
 
         // 2. STOP PREVIOUS AUDIO / RESET LOGIC
         if (visualState === 'SPEAKING') {
@@ -45,10 +45,11 @@ export default function AvatarWidget() {
         // Toggle Recording
         if (isRecording) {
             stopRecording();
-        } else {
+        } else if(visualState === 'IDLE'){
             // 1. CLEAR CONTENT ON NEW QUESTION
             setBubbleText("Listening...");
             setIsExpanded(false); // Auto-shrink if it was open
+            audioPlayerRef.current.play().catch(() => { });
             startRecording();
         }
     };
@@ -57,6 +58,9 @@ export default function AvatarWidget() {
     // --- 1. HANDLE TRANSCRIPT (Callback from VoiceRecorder) ---
     const handleTranscript = async (text) => {
         if (!text) return;
+
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.src = "";
 
         // 1. Update UI to Thinking
         setVisualState('THINKING');
@@ -82,16 +86,31 @@ export default function AvatarWidget() {
             // 4. Format and Display Text
             // Note: We use a simplified formatter here for the bubble. 
             // If you need the complex HTML (tables/lists), the bubble might get too big.
-            const displayText = formatTextForDisplay(answerText)
+
+            let displayContent = answerText;
+            let ttsContent = answerText;
+
+            if (answerText.includes('***')) {
+                const parts = answerText.split("***")
+
+                displayContent = parts[0].trim();
+
+                ttsContent = parts[1].replace(/Summary:\s*/i, '').trim()
+            } else {
+                ttsContent = cleanTextForTTS(answerText)
+            }
+
+
+            const displayText = formatTextForDisplay(displayContent)
             setBubbleText(displayText);
 
-            const audioText = cleanTextForTTS(answerText);
+            // const audioText = cleanTextForTTS(answerText);
 
             // Update history with bot response
-            setMessages(prev => [...prev, { role: 'assistant', content: answerText }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: displayContent }]);
 
             // 5. Call /tts (Text to Speech)
-            await playTTS(audioText);
+            await playTTS(ttsContent);
 
         } catch (error) {
             console.error(error);
@@ -254,7 +273,8 @@ export default function AvatarWidget() {
             {/* ROBOT AVATAR (Same SVG as before) */}
             <div
                 className={`robot-avatar ${visualState}`}
-                onClick={handleInteraction}
+                onClick={visualState === 'THINKING' ? null: handleInteraction}
+                style={{cursor:visualState === "THINKING" ? 'wait' : 'pointer'}}
                 title={visualState === 'SPEAKING' ? "Click to Stop" : "Click to Speak"}
             >
                 <svg viewBox="0 0 100 100" className="robot-svg">

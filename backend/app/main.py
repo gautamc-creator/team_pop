@@ -14,6 +14,8 @@ from google.genai import types
 from pydantic import BaseModel
 from typing import List, Optional
 import requests
+from langfuse import get_client,observe
+# from app.observability import setup_observability
 
 
 
@@ -24,9 +26,14 @@ ASSEMBLY_API_KEY = os.getenv("ASSEMBLY_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM" #Rachel
 
+
+langfuse = get_client()
+
 # client = OpenAI()
 app = FastAPI()
 aai.settings.api_key = ASSEMBLY_API_KEY
+
+# setup_observability(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +57,7 @@ class TTSRequest(BaseModel):
 
 
 @app.post("/stt")
+@observe(name="stt-call" , as_type="generation")
 async def speech_to_text(file: UploadFile):
     """
     Accepts an audio file (webm/wav/mp3),
@@ -106,6 +114,7 @@ async def speech_to_text(file: UploadFile):
         )
 
 @app.post("/chat")
+@observe(name="chat" , as_type="generation")
 def chat(req: ChatRequest):
     
     try:
@@ -138,6 +147,9 @@ def chat(req: ChatRequest):
            
         3. **Tone:**
            - Professional, enthusiastic, but concise. 
+           
+        4. **Summary**
+           - Give me a seprate summary of the content in short and meaningful that will serve as overview without it containing the urls. 
            
         ### CONTEXT DATA
         {context_text}
@@ -181,6 +193,7 @@ def chat(req: ChatRequest):
     
 
 @app.post('/tts')
+@observe(name="tts-call" , as_type="generation")
 async def text_to_speech(request: TTSRequest):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     
@@ -208,4 +221,9 @@ async def text_to_speech(request: TTSRequest):
 
     # 4. Return Audio Bytes directly to frontend
     return Response(content=response.content, media_type="audio/mpeg")
+
+
+ 
+# Flush events in short-lived applications
+# langfuse.flush()
 
