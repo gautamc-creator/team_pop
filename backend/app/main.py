@@ -66,6 +66,7 @@ class CrawlRequest(BaseModel):
 
 
 @app.post('/crawl')
+@observe(name="crawl-tigger")
 async def start_crawl(req:CrawlRequest , background_tasks : BackgroundTasks):
     # Trigger the crawler in background
     
