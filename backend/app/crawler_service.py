@@ -4,13 +4,16 @@ import os
 import uuid 
 import shutil
 from app.elastic import generate_index_name , create_client_index
+from langfuse import observe
 
 try:
     docker_client = docker.from_env()
 except Exception as e:
     print(f"Docker not detected : {e}")
     docker_client = None
+    
 
+@observe(name="docker-crawler-execution")
 def run_elastic_crawler(target_url : str):
     if not docker_client:
         print("Skipping crawl : Docker unavailable")

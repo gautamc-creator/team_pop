@@ -22,7 +22,7 @@ function App() {
     setTimeout(() => {
       setCrawling(false)
       setReady(true)
-    },5000)
+    },20000)
   }
 
 
