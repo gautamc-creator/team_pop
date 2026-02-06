@@ -1,6 +1,6 @@
 # Backend for Voice Agent
 
-This backend powers the Voice Agent system. It provides APIs for speech-to-text (STT), chat responses grounded in Elasticsearch search results, and text-to-speech (TTS). The current stack uses:
+This backend powers the Voice Agent system. It provides APIs for crawl orchestration, speech-to-text (STT), chat responses grounded in Elasticsearch search results, and text-to-speech (TTS). The current stack uses:
 - **AssemblyAI** for STT
 - **Elasticsearch** for hybrid (BM25 + semantic) retrieval
 - **Google Gemini** for response generation
@@ -8,6 +8,8 @@ This backend powers the Voice Agent system. It provides APIs for speech-to-text 
 
 ## Features
 
+- **Crawl orchestration** via Elastic crawler (Docker)
+- **Crawl status + count** endpoints
 - **Speech-to-Text** via AssemblyAI
 - **Hybrid Search** with Elasticsearch (RRF: keyword + semantic)
 - **LLM Responses** via Gemini (`gemini-2.5-flash`)
@@ -54,6 +56,34 @@ Docs available at `http://localhost:8000/docs`.
 
 ## API Endpoints
 
+### POST `/crawl`
+Triggers a crawler run for a URL in the background.
+
+- **Request**:
+  ```json
+  { "url": "https://example.com" }
+  ```
+- **Response**:
+  ```json
+  { "message": "Crawl job started", "target_url": "...", "target_index": "..." }
+  ```
+
+### GET `/crawl/status?url=...`
+Returns crawl status for a URL.
+
+- **Response**:
+  ```json
+  { "status": "pending|running|completed|failed", "index": "...", "error": "optional" }
+  ```
+
+### GET `/crawl/count?url=...`
+Returns document count for the crawl index.
+
+- **Response**:
+  ```json
+  { "index": "...", "count": 123 }
+  ```
+
 ### POST `/stt`
 Transcribes an uploaded audio file using AssemblyAI.
 
@@ -80,6 +110,7 @@ Generates a response grounded in Elasticsearch context and Gemini.
   ```json
   {
     "answer": "...",
+    "summary": "...",
     "sources": ["https://example.com/page", "https://example.com/another"]
   }
   ```
@@ -126,6 +157,7 @@ backend/
 
 ## Notes
 
+- **Crawl status** is stored in-memory for local demo.
 - **CORS** currently allows all origins. Tighten this for production.
 - **TTS voice** is configured in `app.main` via `VOICE_ID`.
 - If runtime imports fail, ensure `requirements.txt` includes `assemblyai`, `google-genai`, and `requests`.

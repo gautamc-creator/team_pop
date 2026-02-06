@@ -2,7 +2,6 @@
 from fastapi import FastAPI,UploadFile,HTTPException,Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.elastic import es
 from app.schemas import ChatRequest
 import os
 from dotenv import load_dotenv
@@ -12,12 +11,12 @@ import assemblyai as aai
 from app.gemini_client import client
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Optional
+import json
 import requests
 from langfuse import get_client,observe
 from fastapi import BackgroundTasks 
-from app.crawler_service import run_elastic_crawler 
-from app.elastic import generate_index_name
+from app.crawler_service import run_elastic_crawler, set_crawl_status, get_crawl_status 
+from app.elastic import generate_index_name, count_index_docs
 # from app.observability import setup_observability
 
 
@@ -47,15 +46,6 @@ app.add_middleware(
 )
 
 
-# --- DATA MODELS ---
-class Message(BaseModel):
-    role: str
-    content: str
-
-class ChatRequest(BaseModel):
-    messages: List[Message]
-    domain: Optional[str] = None
-    
 class TTSRequest(BaseModel):
     text: str
 
@@ -71,6 +61,7 @@ async def start_crawl(req:CrawlRequest , background_tasks : BackgroundTasks):
     # Trigger the crawler in background
     
     try:
+       set_crawl_status(req.url, "pending", index=generate_index_name(req.url))
        background_tasks.add_task(run_elastic_crawler,req.url)
        
        index_name = generate_index_name(req.url)
@@ -82,6 +73,22 @@ async def start_crawl(req:CrawlRequest , background_tasks : BackgroundTasks):
     
     except Exception as e:
         raise HTTPException(status_code=500,detail=str(e))
+
+@app.get('/crawl/status')
+def crawl_status(url: str):
+    status = get_crawl_status(url)
+    if not status:
+        raise HTTPException(status_code=404, detail="No crawl found for that URL")
+    return status
+
+@app.get('/crawl/count')
+def crawl_count(url: str):
+    index_name = generate_index_name(url)
+    count = count_index_docs(index_name)
+    return {
+        "index": index_name,
+        "count": count
+    }
     
         
         
@@ -156,37 +163,35 @@ def chat(req: ChatRequest):
         latest_query = req.messages[-1].content
         
         target_index = "search-index-final-sense"
-        
         if req.domain:
             target_index = generate_index_name(req.domain)
             print(f"🔍 Searching specific index: {target_index}")
         
         # 2. Get Context based on the LATEST query only
-        context_text, source_urls = get_llm_context(latest_query,index_name = target_index)
+        try:
+            context_text, source_urls = get_llm_context(latest_query,index_name = target_index)
+        except ValueError as e:
+            return {
+                "answer": "I couldn’t find a crawl index yet. Please crawl the site and try again.",
+                "summary": "Crawl index not found. Please crawl the site first.",
+                "sources": []
+            }
 
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""
         ### ROLE
-        You are the expert AI Sales Associate for **SensesIndia** (https://sensesindia.in/).
-        Pop builds high-performing, custom AI agents for SMBs.
+        You are a helpful AI assistant for a website. Be concise and accurate.
         
         ### OBJECTIVES
         1. **Answer Questions:** Use ONLY the provided [CONTEXT] to answer. If the answer isn't there, admit it politely.
-        2. **Drive Leads:** Your ultimate goal is to get the user to share their **Email Address** so a human executive can follow up.
-        
-        ### BEHAVIOR GUIDELINES
-        1. **The "Manager" Handoff:**
-           - If you don't know the answer OR if the question is complex/specific (a "buying signal"), say:
-           - "That is a great specific question. I want to make sure you get the perfect solution. Could you leave your **email address**? I will have our Senior Executive reach out to you directly."
-        
-        2. **Context Citations:**
-           - If you use facts from the context, append sources like this: [Source: URL].
+        2. **Context Citations:** If you use facts from the context, append sources like this: [Source: URL].
            
         3. **Tone:**
            - Professional, enthusiastic, but concise. 
            
-        4. **Summary**
-           - Give me a seprate summary of the content in short and meaningful that will serve as overview without it containing the urls. 
+        4. **Output JSON**
+           - Return a JSON object with keys: "answer" and "summary".
+           - "summary" must be short and should NOT include URLs.
            
         ### CONTEXT DATA
         {context_text}
@@ -218,9 +223,17 @@ def chat(req: ChatRequest):
         )
 
         answer = response.text
+        summary = ""
+        try:
+            parsed = json.loads(response.text)
+            answer = parsed.get("answer", answer)
+            summary = parsed.get("summary", "")
+        except Exception:
+            summary = ""
 
         return {
             "answer": answer,
+            "summary": summary or answer,
             "sources": source_urls
         }
 
@@ -263,4 +276,3 @@ async def text_to_speech(request: TTSRequest):
  
 # Flush events in short-lived applications
 # langfuse.flush()
-

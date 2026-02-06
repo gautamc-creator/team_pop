@@ -1,9 +1,14 @@
 
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Optional
+
+class Message(BaseModel):
+    role: str
+    content: str
 
 class ChatRequest(BaseModel):
-    query: str
+    messages: List[Message]
+    domain: Optional[str] = None
 
 class SearchResult(BaseModel):
     title: str

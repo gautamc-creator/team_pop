@@ -80,6 +80,8 @@
 
 import { useState, useRef } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 /**
  * A Custom Hook that handles the Microphone and STT API.
  * Returns the recording state and start/stop functions.
@@ -108,7 +110,7 @@ export default function useVoiceRecorder({ onTranscript }) {
         formData.append('file', audioBlob, 'audio.wav');
 
         try {
-          const response = await fetch('http://localhost:8000/stt', {
+          const response = await fetch(`${API_BASE_URL}/stt`, {
             method: 'POST',
             body: formData
           });

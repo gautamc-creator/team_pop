@@ -1,14 +1,16 @@
 # Frontend for Voice Agent
 
-This is a React + Vite frontend for the Voice Agent system. It provides two UI experiences:
-- `AvatarWidget` (current default): a compact, voice-first assistant with animated avatar, speech bubble, and TTS playback.
-- `ChatWidget` (legacy/alternate): a full chat interface with rich text formatting and source links.
+This is a React + Vite frontend for the Voice Agent system. It provides a 3-step onboarding flow and the voice-first assistant widget:
+- **Onboarding**: enter a URL → crawl progress → success with embed snippet.
+- **AvatarWidget**: compact, voice-first assistant with cinematic orb and glass bubble.
+- **ChatWidget** (legacy/alternate): a full chat interface with rich text formatting and source links.
 
-The frontend talks to a FastAPI backend over HTTP for STT (`/stt`), chat (`/chat`), and TTS (`/tts`).
+The frontend talks to a FastAPI backend over HTTP for crawl (`/crawl`, `/crawl/status`, `/crawl/count`), STT (`/stt`), chat (`/chat`), and TTS (`/tts`).
 
 ## Features
 
 - **React 19 + Vite**: Fast dev server and optimized builds
+- **Onboarding**: Guided 3-step crawl flow
 - **Voice Input**: Record and send audio to the backend STT endpoint
 - **Chat**: Conversational UI backed by the backend `/chat` endpoint
 - **Text-to-Speech**: Plays synthesized audio from `/tts`
@@ -63,7 +65,7 @@ npm run preview
 frontend/
 ├── src/
 │   ├── main.jsx              # Entry point
-│   ├── App.jsx               # Root component (uses AvatarWidget)
+│   ├── App.jsx               # Root component (onboarding flow)
 │   ├── App.css               # App styles
 │   ├── index.css             # Global styles
 │   ├── components/
@@ -86,6 +88,12 @@ Voice-first UI with:
 - Loading states and speech bubble
 - Calls `/chat` for responses and `/tts` for playback
 
+### App.jsx
+Onboarding flow:
+- Step 1: URL input
+- Step 2: Crawl status + pages indexed
+- Step 3: Embed snippet + widget preview
+
 ### ChatWidget.jsx
 Rich chat UI that:
 - Displays message history
@@ -101,11 +109,11 @@ Rich chat UI that:
 
 ## API Configuration
 
-The frontend currently calls the backend at `http://localhost:8000`.
-If you deploy the backend elsewhere, update the API base URL in:
-- `frontend/src/components/ChatWidget.jsx`
-- `frontend/src/components/AvatarWidget.jsx`
-- `frontend/src/components/VoiceRecorder.jsx`
+The frontend reads the API base URL from:
+
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
 
 ## Dependencies
 

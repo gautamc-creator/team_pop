@@ -73,3 +73,13 @@ def create_client_index(index_name: str):
         print(f"ℹ️ Index {index_name} already exists.")
     
     return index_name
+
+def count_index_docs(index_name: str) -> int:
+    if not es.indices.exists(index=index_name):
+        return 0
+    try:
+        result = es.count(index=index_name)
+        return int(result.get("count", 0))
+    except Exception as e:
+        print(f"⚠️ Failed to count docs for {index_name}: {e}")
+        return 0

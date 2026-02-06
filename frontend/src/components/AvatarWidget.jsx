@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import useVoiceRecorder from './VoiceRecorder'; // Import the new Hook
 import '../styles/AvatarWidget.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const LOADING_PHRASES = [
     "Consulting the universe...",
     "Decoding the matrix...",
@@ -11,7 +13,7 @@ const LOADING_PHRASES = [
     "Asking the elders..."
 ];
 
-export default function AvatarWidget() {
+export default function AvatarWidget({ domain, preview = false }) {
     // --- STATE ---
     // Visual States: 'IDLE', 'LISTENING', 'THINKING', 'SPEAKING'
     const [visualState, setVisualState] = useState('IDLE');
@@ -72,16 +74,17 @@ export default function AvatarWidget() {
 
         try {
             // 3. Call /chat (Elastic + Gemini)
-            const response = await fetch('http://localhost:8000/chat', {
+            const response = await fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: updatedMessages })
+                body: JSON.stringify({ messages: updatedMessages, domain })
             });
 
             if (!response.ok) throw new Error('Chat API failed');
 
             const data = await response.json();
             const answerText = data.answer || "I'm not sure.";
+            const summaryText = data.summary || answerText;
 
             // 4. Format and Display Text
             // Note: We use a simplified formatter here for the bubble. 
@@ -90,15 +93,7 @@ export default function AvatarWidget() {
             let displayContent = answerText;
             let ttsContent = answerText;
 
-            if (answerText.includes('***')) {
-                const parts = answerText.split("***")
-
-                displayContent = parts[0].trim();
-
-                ttsContent = parts[1].replace(/Summary:\s*/i, '').trim()
-            } else {
-                ttsContent = cleanTextForTTS(answerText)
-            }
+            ttsContent = cleanTextForTTS(summaryText)
 
 
             const displayText = formatTextForDisplay(displayContent)
@@ -135,7 +130,7 @@ export default function AvatarWidget() {
     // --- 3. TTS LOGIC ---
     const playTTS = async (text) => {
         try {
-            const ttsResponse = await fetch('http://localhost:8000/tts', {
+            const ttsResponse = await fetch(`${API_BASE_URL}/tts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: text })
@@ -230,7 +225,7 @@ export default function AvatarWidget() {
 
     // --- 4. RENDER ---
     return (
-        <div className={`avatar-widget ${isExpanded ? 'mode-expanded' : ''}`}>
+        <div className={`avatar-widget ${preview ? 'preview' : ''} ${isExpanded ? 'mode-expanded' : ''}`}>
 
             {/* 3. EXPANDABLE BUBBLE */}
             {bubbleText && (
@@ -238,8 +233,11 @@ export default function AvatarWidget() {
 
                     {/* Header Actions */}
                     <div className="bubble-header">
-                        <span className="bubble-status">
-                            {visualState === 'THINKING' ? '⚡ Processing' : '💬 Response'}
+                        <span className={`bubble-status pill ${visualState.toLowerCase()}`}>
+                            {visualState === 'LISTENING' && 'Listening'}
+                            {visualState === 'THINKING' && 'Thinking'}
+                            {visualState === 'SPEAKING' && 'Speaking'}
+                            {visualState === 'IDLE' && 'Ready'}
                         </span>
                         {visualState !== 'THINKING' && (
                             <button
@@ -270,25 +268,15 @@ export default function AvatarWidget() {
                 </div>
             )}
 
-            {/* ROBOT AVATAR (Same SVG as before) */}
+            {/* ORB AVATAR */}
             <div
-                className={`robot-avatar ${visualState}`}
+                className={`orb-avatar ${visualState}`}
                 onClick={visualState === 'THINKING' ? null: handleInteraction}
                 style={{cursor:visualState === "THINKING" ? 'wait' : 'pointer'}}
                 title={visualState === 'SPEAKING' ? "Click to Stop" : "Click to Speak"}
             >
-                <svg viewBox="0 0 100 100" className="robot-svg">
-                    {/* ... Paste your SVG code from the previous step here ... */}
-                    {/* If you lost it, I can paste it again below. Just let me know. */}
-                    <defs><linearGradient id="robotGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4facfe" /><stop offset="100%" stopColor="#00f2fe" /></linearGradient></defs>
-                    <g className="antenna-group"><line x1="50" y1="20" x2="50" y2="10" stroke="#333" strokeWidth="3" /><circle cx="50" cy="8" r="4" fill="#ff4757" className="antenna-bulb" /></g>
-                    <rect x="20" y="20" width="60" height="50" rx="15" fill="url(#robotGrad)" stroke="#333" strokeWidth="3" />
-                    <rect x="12" y="35" width="8" height="20" rx="4" fill="#333" />
-                    <rect x="80" y="35" width="8" height="20" rx="4" fill="#333" />
-                    <rect x="30" y="30" width="40" height="30" rx="8" fill="#fff" opacity="0.9" />
-                    <g className="eyes-group"><circle cx="40" cy="42" r="3" fill="#333" /><circle cx="60" cy="42" r="3" fill="#333" /></g>
-                    <rect id="robot-mouth" x="42" y="52" width="16" height="2" rx="1" fill="#333" />
-                </svg>
+                <div className="orb-core"></div>
+                <div className="orb-ring"></div>
             </div>
 
         </div>

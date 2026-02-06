@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import VoiceRecorder from './VoiceRecorder';
 import '../styles/ChatWidget.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default function ChatWidget() {
   const [messages, setMessages] = useState([
     {
@@ -105,7 +107,7 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // --- CHANGE: Send the full history ---

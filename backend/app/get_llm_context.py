@@ -6,11 +6,12 @@ from app.elastic import es
 
 
 
-def get_llm_context(user_query,index_name = "search-index-final-sense"):
+def get_llm_context(user_query, index_name="search-index-final-sense"):
     """
     Performs Hybrid Search using RRF and returns formatted context + sources.
     """
-    index_name = "search-index-final-sense"
+    if not es.indices.exists(index=index_name):
+        raise ValueError(f"Index not found: {index_name}")
     
     # Modern 'Retriever' syntax for Elasticsearch 9.x
     search_body = {
@@ -69,6 +70,5 @@ def get_llm_context(user_query,index_name = "search-index-final-sense"):
         sources.append(url)
 
     return "\n".join(context_blocks), sources
-
 
 
