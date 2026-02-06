@@ -1,6 +1,7 @@
 # Backend for Voice Agent
 
 This backend powers the Voice Agent system. It provides APIs for crawl orchestration, speech-to-text (STT), chat responses grounded in Elasticsearch search results, and text-to-speech (TTS). The current stack uses:
+
 - **AssemblyAI** for STT
 - **Elasticsearch** for hybrid (BM25 + semantic) retrieval
 - **Google Gemini** for response generation
@@ -43,6 +44,9 @@ ELASTIC_API_KEY=<your-elasticsearch-api-key>
 ASSEMBLY_API_KEY=<your-assemblyai-key>
 GEMINI_API_KEY=<your-gemini-key>
 ELEVENLABS_API_KEY=<your-elevenlabs-key>
+# Optional
+VOICE_ID=<elevenlabs-voice-id> # Default: Rachel
+ELASTIC_INFERENCE_ID=<elastic-inference-id> # Default: .elser-2-elastic
 ```
 
 ## Running the Server
@@ -57,6 +61,7 @@ Docs available at `http://localhost:8000/docs`.
 ## API Endpoints
 
 ### POST `/crawl`
+
 Triggers a crawler run for a URL in the background.
 
 - **Request**:
@@ -69,14 +74,20 @@ Triggers a crawler run for a URL in the background.
   ```
 
 ### GET `/crawl/status?url=...`
+
 Returns crawl status for a URL.
 
 - **Response**:
   ```json
-  { "status": "pending|running|completed|failed", "index": "...", "error": "optional" }
+  {
+    "status": "pending|running|completed|failed",
+    "index": "...",
+    "error": "optional"
+  }
   ```
 
 ### GET `/crawl/count?url=...`
+
 Returns document count for the crawl index.
 
 - **Response**:
@@ -85,6 +96,7 @@ Returns document count for the crawl index.
   ```
 
 ### POST `/stt`
+
 Transcribes an uploaded audio file using AssemblyAI.
 
 - **Request**: `multipart/form-data` with `file`
@@ -94,15 +106,16 @@ Transcribes an uploaded audio file using AssemblyAI.
   ```
 
 ### POST `/chat`
+
 Generates a response grounded in Elasticsearch context and Gemini.
 
 - **Request Body**:
   ```json
   {
     "messages": [
-      {"role": "user", "content": "Hi"},
-      {"role": "assistant", "content": "Hello!"},
-      {"role": "user", "content": "What products do you sell?"}
+      { "role": "user", "content": "Hi" },
+      { "role": "assistant", "content": "Hello!" },
+      { "role": "user", "content": "What products do you sell?" }
     ]
   }
   ```
@@ -116,6 +129,7 @@ Generates a response grounded in Elasticsearch context and Gemini.
   ```
 
 ### POST `/tts`
+
 Converts text to speech via ElevenLabs and returns audio bytes.
 
 - **Request Body**:
@@ -133,6 +147,7 @@ search-index-final-sense
 ```
 
 Expected fields:
+
 - `title`
 - `url`
 - `body`

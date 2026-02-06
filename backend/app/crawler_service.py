@@ -39,13 +39,7 @@ def run_elastic_crawler(target_url : str):
         set_crawl_status(target_url, "failed", error="Docker unavailable on host")
         return
     
-    elastic_url = os.getenv("ELASTIC_URL")
-    elastic_api_key = os.getenv("ELASTIC_API_KEY")
 
-    if not elastic_url:
-        raise ValueError("❌ Error: ELASTIC_URL is missing from .env file")
-    if not elastic_api_key:
-        raise ValueError("❌ Error: ELASTIC_API_KEY is missing from .env file")
     
     formatted_url = normailizeUrl(target_url)
     print(formatted_url)
@@ -62,8 +56,8 @@ def run_elastic_crawler(target_url : str):
         "output_sink": "elasticsearch",
         "output_index": index_name,
         "elasticsearch": {
-            "host": elastic_url,
-            "api_key": elastic_api_key,
+            "host": os.getenv("ELASTIC_URL"),
+            "api_key": os.getenv("ELASTIC_API_KEY"),
             "port":"443",
             "pipeline_enabled": False, 
             "ssl_verification_mode": "none"

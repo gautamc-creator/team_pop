@@ -1,7 +1,12 @@
 from elasticsearch import Elasticsearch
 import os
+import logging
 from dotenv import load_dotenv
 import re
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -59,18 +64,18 @@ def create_client_index(index_name: str):
                 "semantic_text": {
                     "type": "semantic_text",
                     # Ensure this matches the model you have deployed in Elastic
-                    "inference_id": ".elser-2-elastic" 
+                    "inference_id": os.getenv("ELASTIC_INFERENCE_ID", ".elser-2-elastic") 
                 }
             }
         }
         
         try:
             es.indices.create(index=index_name, mappings=mappings)
-            print(f"✅ Created new index: {index_name}")
+            logger.info(f"✅ Created new index: {index_name}")
         except Exception as e:
-            print(f"⚠️ Failed to create index {index_name}: {e}")
+            logger.error(f"⚠️ Failed to create index {index_name}: {e}")
     else:
-        print(f"ℹ️ Index {index_name} already exists.")
+        logger.info(f"ℹ️ Index {index_name} already exists.")
     
     return index_name
 
@@ -81,5 +86,5 @@ def count_index_docs(index_name: str) -> int:
         result = es.count(index=index_name)
         return int(result.get("count", 0))
     except Exception as e:
-        print(f"⚠️ Failed to count docs for {index_name}: {e}")
+        logger.error(f"⚠️ Failed to count docs for {index_name}: {e}")
         return 0

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import AvatarWidget from './components/AvatarWidget'
+import { api } from './services/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -39,13 +40,7 @@ function App() {
     setCrawlError('')
     setStatus('running')
     try {
-      await fetch(`${API_BASE_URL}/crawl`,{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json'
-        },
-        body:JSON.stringify({url})
-      })
+      await api.startCrawl(url)
       setStep('crawl')
     } catch (e) {
       setStatus('failed')
@@ -55,14 +50,11 @@ function App() {
 
   const pollStatus = async () => {
     try {
-      const statusRes = await fetch(`${API_BASE_URL}/crawl/status?${new URLSearchParams({ url })}`)
-      if (statusRes.ok) {
-        const nextStatus = await statusRes.json()
-        if (nextStatus.status) {
-          setStatus(nextStatus.status)
-          if (nextStatus.status === 'failed') {
-            setCrawlError(nextStatus.error || 'Crawl failed')
-          }
+      const nextStatus = await api.getCrawlStatus(url)
+      if (nextStatus.status) {
+        setStatus(nextStatus.status)
+        if (nextStatus.status === 'failed') {
+          setCrawlError(nextStatus.error || 'Crawl failed')
         }
       }
     } catch (e) {
@@ -72,11 +64,8 @@ function App() {
 
   const pollCount = async () => {
     try {
-      const countRes = await fetch(`${API_BASE_URL}/crawl/count?${new URLSearchParams({ url })}`)
-      if (countRes.ok) {
-        const data = await countRes.json()
-        if (typeof data.count === 'number') setCount(data.count)
-      }
+      const data = await api.getCrawlCount(url)
+      if (typeof data.count === 'number') setCount(data.count)
     } catch (e) {
       // ignore count errors
     }

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useVoiceRecorder from './VoiceRecorder'; // Import the new Hook
+import { api } from '../services/api';
 import '../styles/AvatarWidget.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -74,15 +75,8 @@ export default function AvatarWidget({ domain, preview = false }) {
 
         try {
             // 3. Call /chat (Elastic + Gemini)
-            const response = await fetch(`${API_BASE_URL}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: updatedMessages, domain })
-            });
-
-            if (!response.ok) throw new Error('Chat API failed');
-
-            const data = await response.json();
+            // 3. Call /chat (Elastic + Gemini)
+            const data = await api.chat(updatedMessages, domain);
             const answerText = data.answer || "I'm not sure.";
             const summaryText = data.summary || answerText;
 
@@ -130,13 +124,7 @@ export default function AvatarWidget({ domain, preview = false }) {
     // --- 3. TTS LOGIC ---
     const playTTS = async (text) => {
         try {
-            const ttsResponse = await fetch(`${API_BASE_URL}/tts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
-            });
-
-            if (!ttsResponse.ok) throw new Error('TTS Failed');
+            const ttsResponse = await api.tts(text);
 
             //stop
             audioPlayerRef.current.pause()

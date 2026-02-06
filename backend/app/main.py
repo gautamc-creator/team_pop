@@ -17,6 +17,11 @@ from langfuse import get_client,observe
 from fastapi import BackgroundTasks 
 from app.crawler_service import run_elastic_crawler, set_crawl_status, get_crawl_status 
 from app.elastic import generate_index_name, count_index_docs
+import logging
+import asyncio
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 # from app.observability import setup_observability
 
 
@@ -26,7 +31,7 @@ load_dotenv()
 # os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 ASSEMBLY_API_KEY = os.getenv("ASSEMBLY_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-VOICE_ID = "21m00Tcm4TlvDq8ikWAM" #Rachel
+VOICE_ID = os.getenv("VOICE_ID", "21m00Tcm4TlvDq8ikWAM") #Rachel
 
 
 langfuse = get_client()
@@ -153,7 +158,7 @@ async def speech_to_text(file: UploadFile):
 
 @app.post("/chat")
 @observe(name="chat" , as_type="generation")
-def chat(req: ChatRequest):
+async def chat(req: ChatRequest):
     
     try:
         # 1. Extract the latest query (the last message from the user)
@@ -165,11 +170,12 @@ def chat(req: ChatRequest):
         target_index = "search-index-final-sense"
         if req.domain:
             target_index = generate_index_name(req.domain)
-            print(f"🔍 Searching specific index: {target_index}")
+            logging.info(f"🔍 Searching specific index: {target_index}")
         
         # 2. Get Context based on the LATEST query only
         try:
-            context_text, source_urls = get_llm_context(latest_query,index_name = target_index)
+            # Assuming get_llm_context is synchronous, run it in a thread pool
+            context_text, source_urls = await asyncio.to_thread(get_llm_context, latest_query, index_name=target_index)
         except ValueError as e:
             return {
                 "answer": "I couldn’t find a crawl index yet. Please crawl the site and try again.",
@@ -198,37 +204,42 @@ def chat(req: ChatRequest):
         """
 
         # 4. Format History for Gemini
-        # We need to convert the Pydantic messages to the format Gemini expects
         gemini_history = []
         
-        # Add system instruction separate from history if using newer API, 
-        # or prepended to the first message. 
-        # For simplicity with 'generate_content', we can pass system_instruction parameter.
-
-        for msg in req.messages[:-1]: # All messages except the last one (which is the new prompt)
+        for msg in req.messages[:-1]: # All messages except the last one
             role = "user" if msg.role == "user" else "model"
             gemini_history.append(types.Content(
                 role=role,
                 parts=[types.Part.from_text(text=msg.content)]
             ))
 
-        # 5. Call Gemini
-        response = client.models.generate_content(
-            model= "gemini-2.5-flash",
+        # 5. Call Gemini (Async Wrapper if client is sync)
+        # Using run_in_executor to avoid blocking the event loop
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
             contents=gemini_history + [types.Content(role="user", parts=[types.Part.from_text(text=latest_query)])],
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                temperature=0.3, # Keep it precise
+                temperature=0.3,
             )
         )
 
         answer = response.text
         summary = ""
         try:
-            parsed = json.loads(response.text)
+            # Clean up potential markdown formatting in JSON response
+            cleaned_text = response.text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            
+            parsed = json.loads(cleaned_text)
             answer = parsed.get("answer", answer)
             summary = parsed.get("summary", "")
         except Exception:
+            logging.warning("Failed to parse JSON from LLM response, using raw text.")
             summary = ""
 
         return {
@@ -238,7 +249,7 @@ def chat(req: ChatRequest):
         }
 
     except Exception as e:
-        print(f"Chat Error: {e}")
+        logging.error(f"Chat Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 
