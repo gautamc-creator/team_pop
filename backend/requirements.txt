@@ -1,5 +1,11 @@
 fastapi
 uvicorn
-elasticsearch>=8.0.0
 python-dotenv
-openai
+elasticsearch
+google-genai
+assemblyai
+requests
+langfuse
+# --- Add these new lines ---
+docker
+pyyaml

@@ -15,6 +15,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 import requests
 from langfuse import get_client,observe
+from fastapi import BackgroundTasks 
+from app.crawler_service import run_elastic_crawler 
+from app.elastic import generate_index_name
 # from app.observability import setup_observability
 
 
@@ -44,17 +47,44 @@ app.add_middleware(
 )
 
 
-# --- NEW DATA MODELS ---
+# --- DATA MODELS ---
 class Message(BaseModel):
     role: str
     content: str
 
 class ChatRequest(BaseModel):
-    messages: List[Message] 
+    messages: List[Message]
+    domain: Optional[str] = None
     
 class TTSRequest(BaseModel):
     text: str
 
+class CrawlRequest(BaseModel):
+    url:str
+
+
+
+
+@app.post('/crawl')
+async def start_crawl(req:CrawlRequest , background_tasks : BackgroundTasks):
+    # Trigger the crawler in background
+    
+    try:
+       background_tasks.add_task(run_elastic_crawler,req.url)
+       
+       index_name = generate_index_name(req.url)
+       return {
+            "message": "Crawl job started", 
+            "target_url": req.url,
+            "target_index": index_name
+       } 
+    
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=str(e))
+    
+        
+        
+        
 
 @app.post("/stt")
 @observe(name="stt-call" , as_type="generation")
@@ -124,8 +154,14 @@ def chat(req: ChatRequest):
         
         latest_query = req.messages[-1].content
         
+        target_index = "search-index-final-sense"
+        
+        if req.domain:
+            target_index = generate_index_name(req.domain)
+            print(f"🔍 Searching specific index: {target_index}")
+        
         # 2. Get Context based on the LATEST query only
-        context_text, source_urls = get_llm_context(latest_query)
+        context_text, source_urls = get_llm_context(latest_query,index_name = target_index)
 
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""

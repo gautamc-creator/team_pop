@@ -6,7 +6,7 @@ from app.elastic import es
 
 
 
-def get_llm_context(user_query):
+def get_llm_context(user_query,index_name = "search-index-final-sense"):
     """
     Performs Hybrid Search using RRF and returns formatted context + sources.
     """
@@ -44,9 +44,15 @@ def get_llm_context(user_query):
         "_source": ["body", "url", "title"],
         "size": 3
     }
-
-    response = es.search(index=index_name, body=search_body)
-    hits = response['hits']['hits']
+    
+    try:
+        response = es.search(index=index_name, body=search_body)
+        hits = response['hits']['hits']
+    except Exception as e:
+        print(f"Search error on {index_name}: {e}")
+        return "", []
+    
+    
     
     context_blocks = []
     sources = []
