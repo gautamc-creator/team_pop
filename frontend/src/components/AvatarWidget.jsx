@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import useVoiceRecorder from './VoiceRecorder'; // Import the new Hook
 import { api } from '../services/api';
 import '../styles/AvatarWidget.css';
@@ -19,7 +19,8 @@ export default function AvatarWidget({ domain, preview = false }) {
     // Visual States: 'IDLE', 'LISTENING', 'THINKING', 'SPEAKING'
     const [visualState, setVisualState] = useState('IDLE');
     const [bubbleText, setBubbleText] = useState("Hi! Tap me to speak.");
-    const [isExpanded, setIsExpanded] = useState(false);
+    // Changed: isExpanded -> isOpen. Default closed (false), unless preview (true)
+    const [isOpen, setIsOpen] = useState(preview);
 
     // Chat History (Kept from your original ChatWidget to maintain context)
     const [messages, setMessages] = useState([
@@ -27,6 +28,14 @@ export default function AvatarWidget({ domain, preview = false }) {
     ]);
 
     const audioPlayerRef = useRef(new Audio());
+    const chatContainerRef = useRef(null);
+
+    // Auto-scroll to bottom of chat
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [messages, visualState, isOpen]);
 
     const getRandomLoadingPhrase = () => {
         return LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)];
@@ -34,25 +43,31 @@ export default function AvatarWidget({ domain, preview = false }) {
 
     // --- INTERACTION HANDLER (The Brain) ---
     const handleInteraction = () => {
-        // A. "Warm up" audio engine
-        // audioPlayerRef.current.play().catch(() => { });
-
-        // 2. STOP PREVIOUS AUDIO / RESET LOGIC
+        // 1. INTERRUPT SPEAKING
         if (visualState === 'SPEAKING') {
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
+            audioPlayerRef.current.src = ""; // Clear to prevent replay
             setVisualState('IDLE');
-            return; // Stop here, don't record immediately
+            // Do NOT return. Fall through to start recording immediately.
         }
 
-        // Toggle Recording
+        // 2. TOGGLE RECORDING
         if (isRecording) {
             stopRecording();
-        } else if(visualState === 'IDLE'){
-            // 1. CLEAR CONTENT ON NEW QUESTION
+        } else {
+            // Start Listening
+            // Ensure audio is stopped and cleared (in case coming from IDLE with old src)
+            audioPlayerRef.current.pause();
+            if (audioPlayerRef.current.src) {
+                 audioPlayerRef.current.src = ""; 
+            }
+
             setBubbleText("Listening...");
-            setIsExpanded(false); // Auto-shrink if it was open
-            audioPlayerRef.current.play().catch(() => { });
+            setIsOpen(true); // Auto-open when interacting
+            
+            // Note: We removed the 'warm up' play() call because it was causing replays of old audio.
+            // Modern browsers usually allow AudioContext resume on user gesture (click), which startRecording handles.
             startRecording();
         }
     };
@@ -68,6 +83,7 @@ export default function AvatarWidget({ domain, preview = false }) {
         // 1. Update UI to Thinking
         setVisualState('THINKING');
         setBubbleText(getRandomLoadingPhrase());
+        setIsOpen(true); // Ensure open
 
         // 2. Add User Message to History
         const updatedMessages = [...messages, { role: 'user', content: text }];
@@ -77,11 +93,11 @@ export default function AvatarWidget({ domain, preview = false }) {
             // 3. Call /chat (Elastic + Gemini)
             const data = await api.chat(updatedMessages, domain);
             const answerText = data.answer || "I'm not sure.";
+            const summaryText = data.summary || answerText; // Use summary for TTS, fallback to answer
             const sources = data.sources || []; // This is now an array ["url1", "url2"]
 
             // 1. TTS Text (Clean Summary)
-            // No need to strip sources anymore, the backend sends clean text in 'answer'
-            let ttsContent = answerText; 
+            let ttsContent = summaryText; 
 
             // 2. Display Text (Summary + HTML Links)
             // First, format the text (e.g. bolding)
@@ -101,7 +117,7 @@ export default function AvatarWidget({ domain, preview = false }) {
             }
 
             // 3. Set State
-            setBubbleText(formattedText); 
+            // setBubbleText(formattedText); // No longer needed for display, messages array handles it
             setMessages(prev => [...prev, { role: 'assistant', content: formattedText }]); // Store full HTML in history
 
             // 4. Play TTS (using the clean text)
@@ -164,6 +180,7 @@ export default function AvatarWidget({ domain, preview = false }) {
 
             audioPlayerRef.current.onended = () => {
                 setVisualState('IDLE');
+                audioPlayerRef.current.src = ""; // Clear source
                 URL.revokeObjectURL(audioUrl);
             };
         } catch (e) {
@@ -197,18 +214,14 @@ export default function AvatarWidget({ domain, preview = false }) {
         return formatted;
     };
 
-    const stripHtml = (html) => {
-        let tmp = document.createElement("DIV");
-        tmp.innerHTML = html;
-        return tmp.textContent || tmp.innerText || "";
-    }
+
 
     // --- 4. RENDER ---
     return (
-        <div className={`avatar-widget ${preview ? 'preview' : ''} ${isExpanded ? 'mode-expanded' : ''}`}>
+        <div className={`avatar-widget ${preview ? 'preview' : ''} ${isOpen ? 'mode-open' : 'mode-closed'}`}>
 
-            {/* 3. EXPANDABLE BUBBLE */}
-            {bubbleText && (
+            {/* 3. EXPANDABLE BUBBLE - Only render if OPEN */}
+            {isOpen && (
                 <div className={`bubble ${visualState === 'THINKING' ? 'pulse' : ''}`}>
 
                     {/* Header Actions */}
@@ -219,28 +232,47 @@ export default function AvatarWidget({ domain, preview = false }) {
                             {visualState === 'SPEAKING' && 'Speaking'}
                             {visualState === 'IDLE' && 'Ready'}
                         </span>
-                        {visualState !== 'THINKING' && (
-                            <button
-                                className="expand-btn"
-                                onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-                            >
-                                {isExpanded ? 'Minimize' : 'Expand'}
-                            </button>
-                        )}
+                        
+                        <button
+                            className="expand-btn"
+                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
+                        >
+                            Close
+                        </button>
                     </div>
 
                     {/* Content Area */}
-                    <div className="bubble-content">
-                        {isExpanded ? (
-                            // Expanded: Show full HTML
-                            <div dangerouslySetInnerHTML={{ __html: bubbleText }} />
-                        ) : (
-                            // Collapsed: Show truncated HTML (Requires a small trick or just truncate plain text)
-                            // Ideally, for collapsed view, we strip HTML tags to avoid breaking layout
-                            <div>
-                                {stripHtml(bubbleText).substring(0, 100)}...
-                                {visualState === "SPEAKING" ? <span style={{ color: '#888', fontSize: '10px' }}> ( Expand to see sources)</span> : ""}
+                    <div className="bubble-content chat-history" ref={chatContainerRef}>
+                        {messages.map((msg, idx) => (
+                            <div 
+                                key={idx} 
+                                className={`message-bubble ${msg.role === 'user' ? 'user-message' : 'assistant-message'}`}
+                            >
+                                {msg.role === 'assistant' ? (
+                                    <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                                ) : (
+                                    msg.content
+                                )}
                             </div>
+                        ))}
+                        
+                        {/* Transient State Indicators */}
+                        {visualState === 'LISTENING' && (
+                             <div className="status-message">
+                                 <span>Listening...</span>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                             </div>
+                        )}
+                        
+                        {visualState === 'THINKING' && (
+                             <div className="status-message">
+                                 <span>{bubbleText}</span>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                             </div>
                         )}
                     </div>
 
@@ -251,7 +283,15 @@ export default function AvatarWidget({ domain, preview = false }) {
             {/* ORB AVATAR */}
             <div
                 className={`orb-avatar ${visualState}`}
-                onClick={visualState === 'THINKING' ? null: handleInteraction}
+                onClick={() => {
+                     // Logic: If closed, open. If open and idle, handle interaction.
+                     if (!isOpen) {
+                         setIsOpen(true);
+                     } else {
+                         // If open, perform standard interaction (toggle recording/stop audio)
+                         if (visualState !== 'THINKING') handleInteraction();
+                     }
+                }}
                 style={{cursor:visualState === "THINKING" ? 'wait' : 'pointer'}}
                 title={visualState === 'SPEAKING' ? "Click to Stop" : "Click to Speak"}
             >

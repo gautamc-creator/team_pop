@@ -182,21 +182,23 @@ async def chat(req: ChatRequest):
                 "summary": "Crawl index not found. Please crawl the site first.",
                 "sources": []
             }
-
+        logging.info(f"🔍 Context: {context_text}")
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""
         ### ROLE
-        You are a helpful, enthusiastic AI assistant. Your responses are designed to be read aloud by a TTS (Text-to-Speech) engine, so keep the summary conversational and fluid.
+        You are a helpful, enthusiastic AI assistant. Your responses are designed to be displayed in a chat bubble AND read aloud by a Text-to-Speech (TTS) engine.
 
         ### OBJECTIVES
         1. **Answer Questions:** Use ONLY the provided [CONTEXT]. If the answer is missing, say: "I'm sorry, I don't have that information right now, but I'd love to help with something else!"
-        2. **TTS-Optimized Summary:** Create a short, one-linear summary for matching products or the overall context. Avoid special characters (like asterisks or complex brackets) in the summary that might trip up a voice model.
-        3. **Tone:** Professional, energetic, and very concise.
+        2. **Detailed Answer (for UI):** Provide a short answer that is minimal for the user to get his answer not to be long for the user to read.
+        3. **TTS-Optimized Summary (for Audio):** Create a short, one-linear summary of the answer. Avoid special characters (like asterisks or complex brackets) in the summary that might trip up a voice model.
+        4. **Tone:** Professional, energetic, and concise.
 
         ### OUTPUT FORMAT
         Return a JSON object only.
         {{
-          "summary": "A conversational, short, and punchy overview of the match. No URLs here.",
+          "answer": "The answer to be displayed textually.",
+          "summary": "A conversational, short, and punchy overview for audio/TTS. No URLs here.",
           "links": ["https://link1.com", "https://link2.com"]
         }}
 
@@ -226,28 +228,49 @@ async def chat(req: ChatRequest):
             )
         )
 
+        logging.info(f"🔍 Response: {response}")
+
         answer = response.text
         summary = ""
         try:
             # Clean up potential markdown formatting in JSON response
             cleaned_text = response.text.strip()
-            if cleaned_text.startswith("```json"):
-                cleaned_text = cleaned_text[7:]
-            if cleaned_text.endswith("```"):
-                cleaned_text = cleaned_text[:-3]
+            # Remove markdown code blocks if present
+            if "```" in cleaned_text:
+                cleaned_text = cleaned_text.split("```json")[-1].split("```")[0].strip()
             
-            parsed = json.loads(cleaned_text)
+            # Attempt to parse
+            parsed = json.loads(cleaned_text, strict=False)
             
-            # Both 'answer' and 'summary' get the conversational text
-            answer = parsed.get("summary", "I couldn't generate a summary.") 
+            # 'answer' for the chat bubble
+            answer = parsed.get("answer", parsed.get("summary", "I couldn't generate an answer."))
+            
+            # 'summary' for TTS
             summary = parsed.get("summary", "")
+            if not summary and answer:
+                 # Fallback: use first sentence/shortened answer if summary is missing
+                 summary = answer[:150] + "..." if len(answer) > 150 else answer
 
             # 'sources' gets the array of links
             sources = parsed.get("links", []) 
 
-        except Exception:
-            logging.warning("Failed to parse JSON from LLM response, using raw text.")
-            summary = ""
+        except Exception as e:
+            logging.warning(f"Failed to parse JSON from LLM response: {e}. Raw text: {response.text}")
+            
+            # FALLBACK: If JSON parsing fails, try to "rescue" the answer if it looks like the raw JSON
+            # This is a regex heuristic to find "answer": "..." content
+            import re
+            match = re.search(r'"answer"\s*:\s*"(.*?)"(?:\s*,|\s*})', response.text, re.DOTALL)
+            if match:
+                 answer = match.group(1).replace(r'\n', '\n').replace(r'\"', '"')
+                 summary = answer[:100]
+                 sources = []
+            else:
+                 # If all else fails, just return the raw text but clean it up slightly if it looks like code
+                 answer = response.text.replace('```json', '').replace('```', '')
+            
+            if not summary:
+                summary = "I found some information."
             sources = []
 
         return {

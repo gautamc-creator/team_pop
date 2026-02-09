@@ -3,12 +3,16 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
+  /* Revert to simple containment for the Orb */
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end; 
   z-index: 9999;
   font-family: 'Space Grotesk', sans-serif;
   pointer-events: none;
+  /* Ensure container doesn't take full screen, just where content is */
+  width: auto;
+  height: auto;
 }
 
 .avatar-widget.preview {
@@ -19,93 +23,56 @@
 }
 
 /* --- GLASS BUBBLE --- */
+/* --- GLASS BUBBLE --- */
 .bubble {
+  /* Absolute position relative to the avatar-widget container */
+  position: absolute;
+  bottom: 100%; /* Push to top of container (above Orb) */
+  right: 0;     /* Align right with Orb */
+  margin-bottom: 16px; /* Space between Orb and Bubble */
+  
   background: rgba(15, 24, 34, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
-  width: 260px;
+  
+  /* DEFAULT TO EXPANDED SIZE */
+  width: 360px;
+  max-width: 90vw;
+  height: 600px;
+  max-height: 80vh; 
+  
   padding: 16px;
   border-radius: 18px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-  margin-bottom: 16px;
   color: var(--text-0);
   pointer-events: auto;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-}
-
-.avatar-widget.preview .bubble {
-  width: 100%;
-  position: relative;
-  bottom: auto;
-  right: auto;
-}
-
-.bubble-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.bubble-status.pill {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-1);
-}
-
-.bubble-status.pill.listening {
-  color: #ffb86c;
-  border: 1px solid rgba(255, 184, 108, 0.4);
-}
-
-.bubble-status.pill.thinking {
-  color: #7aa7ff;
-  border: 1px solid rgba(122, 167, 255, 0.4);
-}
-
-.bubble-status.pill.speaking {
-  color: #66f2c1;
-  border: 1px solid rgba(102, 242, 193, 0.4);
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  color: var(--accent-0);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 0;
-}
-
-.bubble-content {
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.avatar-widget.mode-expanded .bubble {
-  width: 360px;
-  height: 520px;
-  overflow-y: auto;
-  position: fixed;
-  bottom: 130px;
-  right: 24px;
-  border-radius: 14px;
+  transform-origin: bottom right; /* Animate from connector */
+  overflow-y: hidden;
   z-index: 10000;
 }
 
-.avatar-widget.preview.mode-expanded .bubble {
+.avatar-widget.preview .bubble {
   position: relative;
   bottom: auto;
   right: auto;
-  height: 360px;
+  margin: 10px 0 0;
+  width: 100%;
+  height: 480px;
+  max-height: none;
 }
+
+/* ... headers/content ... */
+
+/* REMOVED: .avatar-widget.mode-expanded .bubble - merged into default .bubble */
+
+/* Note: Since we render {isOpen && ...}, the bubble is simply added/removed from DOM 
+   or we can use CSS transition if we kept it in DOM. 
+   React removal is cleaner for logic but no exit animation without logic. 
+   User asked for simple Open/Close. 
+*/
 
 .mode-expanded .bubble::-webkit-scrollbar {
   width: 6px;
@@ -115,41 +82,7 @@
   border-radius: 3px;
 }
 
-.bubble.pulse {
-  border: 1px solid rgba(70, 194, 255, 0.5);
-  animation: pulseBorder 1.5s infinite;
-}
-
-@keyframes pulseBorder {
-  0% { box-shadow: 0 0 0 0 rgba(70, 194, 255, 0.25); }
-  70% { box-shadow: 0 0 0 10px rgba(70, 194, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(70, 194, 255, 0); }
-}
-
-/* --- SOURCE LINKS --- */
-.source-link {
-  display: inline-block;
-  background-color: rgba(255, 255, 255, 0.08);
-  color: var(--accent-0);
-  padding: 2px 8px;
-  border-radius: 12px;
-  text-decoration: none;
-  font-size: 0.85em;
-  margin: 0 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s;
-  vertical-align: middle;
-}
-
-.source-link:hover {
-  background-color: rgba(70, 194, 255, 0.2);
-  color: #cfefff;
-}
-
-strong {
-  color: #dbe8f5;
-  font-weight: 700;
-}
+/* ... existing styles ... */
 
 /* --- ORB AVATAR --- */
 .orb-avatar {
@@ -162,6 +95,7 @@ strong {
   justify-content: center;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.5));
   transition: transform 0.2s ease;
+  flex-shrink: 0; /* Prevent shrinking in flex container */
 }
 
 .orb-avatar:hover {
@@ -229,4 +163,86 @@ strong {
     height: 60vh;
     right: 5vw;
   }
+}
+
+/* --- CHAT HISTORY --- */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 100%;
+  padding-right: 4px; /* Space for scrollbar */
+  flex: 1; /* Take remaining space */
+}
+
+/* Scrollbar within chat history */
+.chat-history::-webkit-scrollbar {
+  width: 4px;
+}
+.chat-history::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.message-bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 90%;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word; /* Ensure long words break */
+  white-space: pre-wrap; /* Preserve newlines from backend */
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* User Message */
+.user-message {
+  align-self: flex-end;
+  background: rgba(70, 194, 255, 0.15);
+  color: #e9f0f6;
+  border: 1px solid rgba(70, 194, 255, 0.2);
+  border-bottom-right-radius: 2px;
+}
+
+/* Assistant Message */
+.assistant-message {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-0);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-left-radius: 2px;
+}
+
+/* Transient States (Thinking/Listening) in chat */
+.status-message {
+    align-self: flex-start;
+    color: var(--text-1);
+    font-size: 13px;
+    font-style: italic;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--text-1);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
 }

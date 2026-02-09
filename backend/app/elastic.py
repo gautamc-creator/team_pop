@@ -28,6 +28,9 @@ def generate_index_name(domain: str) -> str:
     clean = re.sub(r'^https?://', '', domain)
     # Remove 'www.'
     clean = re.sub(r'^www\.', '', clean)
+
+    if clean.endswith('/'):
+        clean = clean[:-1]
     # Remove paths/queries, keep only domain
     clean = clean.split('/')[0]
     # Replace non-alphanumeric characters with dashes

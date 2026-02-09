@@ -1,141 +1,77 @@
-# Frontend for Voice Agent
+# Team Pop Frontend
 
-This is a React + Vite frontend for the Voice Agent system. It provides a 3-step onboarding flow and the voice-first assistant widget:
-- **Onboarding**: enter a URL → crawl progress → success with embed snippet.
-- **AvatarWidget**: compact, voice-first assistant with cinematic orb and glass bubble.
-- **ChatWidget** (legacy/alternate): a full chat interface with rich text formatting and source links.
+The frontend for the Team Pop Voice Agent. Built with **React 19** and **Vite**, this application provides both the onboarding dashboard for creating an assistant and the actual widget that users interact with.
 
-The frontend talks to a FastAPI backend over HTTP for crawl (`/crawl`, `/crawl/status`, `/crawl/count`), STT (`/stt`), chat (`/chat`), and TTS (`/tts`).
+## ✨ Features
 
-## Features
+- **Get Started Timeline**: A guided 3-step vertical timeline (Enter URL -> Crawling -> Preview).
+- **Avatar Widget**: A cinematic, voice-first UI component.
+  - **Orb Mode**: A glowing, animated orb that reacts to "Listening", "Thinking", and "Speaking" states.
+  - **Chat Mode**: A simplifed, glassmorphism-styled chat window that opens on interaction.
+  - **Voice-First**: "Tap-to-Interrupt" logic, auto-open on speech, and real-time state visualization.
+- **Smart Logic**:
+  - **Simplified UI**: The widget is either **Open** (Full Chat) or **Closed** (Orb Only). No confusing intermediate states.
+  - **Auto-Scroll**: Chat history automatically snaps to the newest message.
 
-- **React 19 + Vite**: Fast dev server and optimized builds
-- **Onboarding**: Guided 3-step crawl flow
-- **Voice Input**: Record and send audio to the backend STT endpoint
-- **Chat**: Conversational UI backed by the backend `/chat` endpoint
-- **Text-to-Speech**: Plays synthesized audio from `/tts`
-- **Responsive UI**: Widget layout that works on desktop and mobile
-- **ESLint**: Enforced code quality
+## 🚀 Setup & Run
 
-## Prerequisites
+### Prerequisites
 
-- Node.js 16+
-- npm or yarn
-- Backend API running on `http://localhost:8000`
+- Node.js 18+
+- Backend running on port 8000
 
-## Installation
+### Installation
 
 ```bash
 cd frontend
 npm install
 ```
 
-## Development
+### Development
 
 ```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173` (or the next available port).
+Access the app at `http://localhost:5173`.
 
-### Linting
-
-```bash
-npm run lint
-```
-
-Fix lint issues automatically:
-
-```bash
-npm run lint -- --fix
-```
-
-## Build and Preview
+### Production Build
 
 ```bash
 npm run build
 npm run preview
 ```
 
-`npm run preview` serves the production build locally (default `http://localhost:4173`).
-
-## Project Structure
+## 🏗️ Project Structure
 
 ```
-frontend/
-├── src/
-│   ├── main.jsx              # Entry point
-│   ├── App.jsx               # Root component (onboarding flow)
-│   ├── App.css               # App styles
-│   ├── index.css             # Global styles
-│   ├── components/
-│   │   ├── AvatarWidget.jsx  # Voice-first assistant (default)
-│   │   ├── ChatWidget.jsx    # Full chat interface (optional)
-│   │   └── VoiceRecorder.jsx # useVoiceRecorder hook
-│   └── styles/               # Component styles
-├── index.html                # HTML template
-├── vite.config.js            # Vite config
-├── eslint.config.js          # ESLint config
-├── package.json              # Scripts and dependencies
-└── README.md                 # This file
+src/
+├── components/
+│   ├── AvatarWidget.jsx   # The core voice assistant widget
+│   └── VoiceRecorder.jsx  # Hook for handling microphone input
+├── pages/
+│   └── GetStarted.jsx     # The 3-step onboarding timeline page
+├── styles/
+│   ├── AvatarWidget.css   # Animations, Glassmorphism, Layout
+│   └── GetStarted.css     # Timeline specific styles
+├── services/
+│   └── api.js             # API client for Backend (STT, TTS, Chat)
+└── App.jsx
 ```
 
-## Key Components
+## 🔌 API Integration
 
-### AvatarWidget.jsx
-Voice-first UI with:
-- Tap-to-speak recording
-- Loading states and speech bubble
-- Calls `/chat` for responses and `/tts` for playback
+The frontend communicates with the backend via `src/services/api.js`.
 
-### App.jsx
-Onboarding flow:
-- Step 1: URL input
-- Step 2: Crawl status + pages indexed
-- Step 3: Embed snippet + widget preview
+- `POST /stt`: Uploads audio blob, receives text.
+- `POST /chat`: Sends message history, receives `{ answer, summary, sources }`.
+- `POST /tts`: Sends text, receives audio blob (streamed).
+- `GET /crawl/*`: Polls for crawl status and verification.
 
-### ChatWidget.jsx
-Rich chat UI that:
-- Displays message history
-- Formats markdown-like responses
-- Shows source links
-- Sends history to `/chat`
+## 🎨 Styling
 
-### VoiceRecorder.jsx (Hook)
-`useVoiceRecorder` handles:
-- Microphone recording
-- Uploading audio to `/stt`
-- Returning transcribed text
+We use raw CSS with CSS variables for theming (see `index.css`).
 
-## API Configuration
-
-The frontend reads the API base URL from:
-
-```
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-## Dependencies
-
-### Runtime
-- `react` ^19.2.0
-- `react-dom` ^19.2.0
-
-### Development
-- `vite` ^7.2.4
-- `@vitejs/plugin-react` ^5.1.1
-- `eslint` ^9.39.1
-- `eslint-plugin-react-hooks`
-- `eslint-plugin-react-refresh`
-- `vite-plugin-css-injected-by-js`
-
-## Troubleshooting
-
-- **Dev server not starting**: `node --version`, then reinstall `node_modules`.
-- **STT not working**: Check mic permissions and backend `/stt` endpoint.
-- **No audio playback**: Browser may block autoplay; click/tap the widget to enable audio.
-- **CORS issues**: Ensure backend CORS is configured for your frontend domain.
-
-## License
-
-MIT. See the root project README for details.
+- **Font**: "Space Grotesk" for a modern, tech-forward look.
+- **Glassmorphism**: Heavy use of `backdrop-filter: blur()` and transparent backgrounds.
+- **Animations**: CSS keyframes for the Orb's "breathing" and "speaking" waves.

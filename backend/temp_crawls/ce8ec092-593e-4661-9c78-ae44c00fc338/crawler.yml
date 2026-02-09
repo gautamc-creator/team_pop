@@ -1,8 +1,0 @@
-domains:
-- url: https://sensesindia.in/
-elasticsearch:
-  api_key: QmtDVEVKd0I0eDB4ZEdQcGxvZUo6YWtVd281ZEFqLUxpdkVnZy0wUWo4dw==
-  host: https://c12a615eb42a4d34be30f57c03062fb1.us-east-2.aws.elastic-cloud.com:443
-  pipeline_enabled: false
-output_index: crawl-sensesindia-in
-output_sink: elasticsearch
