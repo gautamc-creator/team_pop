@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import VoiceRecorder from './VoiceRecorder';
+import VoiceRecorder from '../src/components/VoiceRecorder';
 import '../styles/ChatWidget.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
