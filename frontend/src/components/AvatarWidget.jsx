@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import useVoiceRecorder from './VoiceRecorder'; // Import the new Hook
 import { api } from '../services/api';
 import '../styles/AvatarWidget.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 
 const LOADING_PHRASES = [
     "Consulting the universe...",
@@ -113,12 +113,19 @@ export default function AvatarWidget({ domain, preview = false }) {
         onTranscript: handleTranscript
     });
 
-    // Sync Hook state with Visual State
-    useEffect(() => {
-        if (isRecording) setVisualState('LISTENING');
-        else if (visualState === 'LISTENING') setVisualState('THINKING');
-        // Logic: If hook stops recording, we are now 'Thinking' until API returns
-    }, [isRecording]);
+    const [prevIsRecording, setPrevIsRecording] = useState(false);
+
+    // Sync Hook state with Visual State (during render to avoid effect/flicker)
+    if (isRecording !== prevIsRecording) {
+        setPrevIsRecording(isRecording);
+        if (isRecording) {
+             // Only switch to listening if not already (though implicit here)
+             if (visualState !== 'LISTENING') setVisualState('LISTENING');
+        } else {
+             // If stopped recording and was listening, go to thinking
+             if (visualState === 'LISTENING') setVisualState('THINKING');
+        }
+    }
 
 
     // --- 3. TTS LOGIC ---

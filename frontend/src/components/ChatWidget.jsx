@@ -69,7 +69,7 @@ export default function ChatWidget() {
           // Create a cleaner title from the URL (e.g., "teampop.com/blog")
           try {
             title = new URL(source).hostname + new URL(source).pathname;
-          } catch (e) {
+          } catch {
             title = source;
           }
         } else {

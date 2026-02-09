@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import AvatarWidget from './components/AvatarWidget'
 import { api } from './services/api'
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+
 
 function App() {
   const [step, setStep] = useState('input')
@@ -42,37 +43,40 @@ function App() {
     try {
       await api.startCrawl(url)
       setStep('crawl')
-    } catch (e) {
+    } catch {
       setStatus('failed')
       setCrawlError('Failed to start crawl')
     }
   }
 
-  const pollStatus = async () => {
-    try {
-      const nextStatus = await api.getCrawlStatus(url)
-      if (nextStatus.status) {
-        setStatus(nextStatus.status)
-        if (nextStatus.status === 'failed') {
-          setCrawlError(nextStatus.error || 'Crawl failed')
-        }
-      }
-    } catch (e) {
-      // ignore poll errors
-    }
-  }
-
-  const pollCount = async () => {
-    try {
-      const data = await api.getCrawlCount(url)
-      if (typeof data.count === 'number') setCount(data.count)
-    } catch (e) {
-      // ignore count errors
-    }
-  }
-
   useEffect(() => {
     if (step !== 'crawl') return
+
+    const pollStatus = async () => {
+      try {
+        const nextStatus = await api.getCrawlStatus(url)
+        if (nextStatus.status) {
+          setStatus(nextStatus.status)
+          if (nextStatus.status === 'failed') {
+            setCrawlError(nextStatus.error || 'Crawl failed')
+          } else if (nextStatus.status === 'completed') {
+            setStep('success')
+          }
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }
+  
+    const pollCount = async () => {
+      try {
+        const data = await api.getCrawlCount(url)
+        if (typeof data.count === 'number') setCount(data.count)
+      } catch {
+        // ignore count errors
+      }
+    }
+
     const interval = setInterval(() => {
       pollStatus()
       pollCount()
@@ -80,11 +84,7 @@ function App() {
     return () => clearInterval(interval)
   }, [step, url])
 
-  useEffect(() => {
-    if (status === 'completed') {
-      setStep('success')
-    }
-  }, [status])
+
 
   return (
     <div className="app-container">
