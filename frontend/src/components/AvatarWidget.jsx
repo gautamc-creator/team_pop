@@ -75,30 +75,36 @@ export default function AvatarWidget({ domain, preview = false }) {
 
         try {
             // 3. Call /chat (Elastic + Gemini)
-            // 3. Call /chat (Elastic + Gemini)
             const data = await api.chat(updatedMessages, domain);
             const answerText = data.answer || "I'm not sure.";
-            const summaryText = data.summary || answerText;
+            const sources = data.sources || []; // This is now an array ["url1", "url2"]
 
-            // 4. Format and Display Text
-            // Note: We use a simplified formatter here for the bubble. 
-            // If you need the complex HTML (tables/lists), the bubble might get too big.
+            // 1. TTS Text (Clean Summary)
+            // No need to strip sources anymore, the backend sends clean text in 'answer'
+            let ttsContent = answerText; 
 
-            let displayContent = answerText;
-            let ttsContent = answerText;
+            // 2. Display Text (Summary + HTML Links)
+            // First, format the text (e.g. bolding)
+            let formattedText = formatTextForDisplay(answerText);
 
-            ttsContent = cleanTextForTTS(summaryText)
+            // Then, append sources if they exist
+            if (sources.length > 0) {
+                formattedText += '<br/><div class="sources-container" style="margin-top:8px; font-size: 0.85em; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">';
+                formattedText += '<strong>Sources:</strong><ul style="padding-left: 20px; margin: 4px 0;">';
 
+                sources.forEach((src, idx) => {
+                     // Create a clickable link for each source
+                     formattedText += `<li><a href="${src}" target="_blank" rel="noopener noreferrer" style="color: #61dafb; text-decoration: underline;">Source ${idx + 1}</a></li>`;
+                });
 
-            const displayText = formatTextForDisplay(displayContent)
-            setBubbleText(displayText);
+                formattedText += '</ul></div>';
+            }
 
-            // const audioText = cleanTextForTTS(answerText);
+            // 3. Set State
+            setBubbleText(formattedText); 
+            setMessages(prev => [...prev, { role: 'assistant', content: formattedText }]); // Store full HTML in history
 
-            // Update history with bot response
-            setMessages(prev => [...prev, { role: 'assistant', content: displayContent }]);
-
-            // 5. Call /tts (Text to Speech)
+            // 4. Play TTS (using the clean text)
             await playTTS(ttsContent);
 
         } catch (error) {
@@ -176,37 +182,16 @@ export default function AvatarWidget({ domain, preview = false }) {
     // };
 
 
-    // 1. CLEANER: Removes sources so TTS doesn't read them
-    const cleanTextForTTS = (text) => {
-        if (!text) return "";
-        // Remove [Source: URL] patterns entirely
-        return text.replace(/\[Source:.*?\]/g, '');
-    };
 
-    // 2. FORMATTER: Turns sources into clickable links & handles bold text
+
+    // 2. FORMATTER: Turn bold into HTML bold. Sources are handled separately now.
     const formatTextForDisplay = (text) => {
         if (!text) return "";
 
         // A. Convert Markdown Bold (**text**) to HTML Bold (<strong>text</strong>)
         let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-        // B. Convert [Source: URL] to a clickable badge
-        // We handle multiple URLs in one bracket if necessary, or just standard ones
-        formatted = formatted.replace(
-            /\[Source: (.*?)\]/g, // Capture EVERYTHING inside the brackets
-            (match, content) => {
-                // Split by comma to get individual URLs
-                const urls = content.split(',').map(u => u.trim());
-
-                // Generate a link button for EACH URL found
-                return urls.map((url, index) => {
-                    // Basic cleanup just in case
-                    const cleanUrl = url.replace(/,$/, '');
-                    return `<a href="${cleanUrl}" target="_blank" class="source-link">📄 Source ${urls.length > 1 ? index + 1 : ''}</a>`;
-                }).join(' '); // Join them with a space
-            }
-        );
-        // C. Handle Newlines (convert \n to <br>)
+        // B. Handle Newlines (convert \n to <br>)
         formatted = formatted.replace(/\n/g, '<br />');
 
         return formatted;

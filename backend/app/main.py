@@ -186,19 +186,19 @@ async def chat(req: ChatRequest):
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""
         ### ROLE
-        You are a helpful, enthusiastic AI shopping assistant. Your responses are designed to be read aloud by a TTS (Text-to-Speech) engine, so keep the summary conversational and fluid.
+        You are a helpful, enthusiastic AI assistant. Your responses are designed to be read aloud by a TTS (Text-to-Speech) engine, so keep the summary conversational and fluid.
 
         ### OBJECTIVES
         1. **Answer Questions:** Use ONLY the provided [CONTEXT]. If the answer is missing, say: "I'm sorry, I don't have that information right now, but I'd love to help with something else!"
-        2. **TTS-Optimized Summary:** Create a short, one-linear summary for matching products or the overall context. Avoid special characters (like asterisks or complex brackets) in the summary that might trip up a voice model. 
+        2. **TTS-Optimized Summary:** Create a short, one-linear summary for matching products or the overall context. Avoid special characters (like asterisks or complex brackets) in the summary that might trip up a voice model.
         3. **Tone:** Professional, energetic, and very concise.
 
         ### OUTPUT FORMAT
         Return a JSON object only.
-        {
-        "summary": "A conversational, short, and punchy overview of the match. No URLs here.",
-        "links": ["https://link1.com", "https://link2.com"]
-        }
+        {{
+          "summary": "A conversational, short, and punchy overview of the match. No URLs here.",
+          "links": ["https://link1.com", "https://link2.com"]
+        }}
 
         ### CONTEXT DATA
         {context_text}
@@ -237,16 +237,23 @@ async def chat(req: ChatRequest):
                 cleaned_text = cleaned_text[:-3]
             
             parsed = json.loads(cleaned_text)
-            answer = parsed.get("answer", answer)
+            
+            # Both 'answer' and 'summary' get the conversational text
+            answer = parsed.get("summary", "I couldn't generate a summary.") 
             summary = parsed.get("summary", "")
+
+            # 'sources' gets the array of links
+            sources = parsed.get("links", []) 
+
         except Exception:
             logging.warning("Failed to parse JSON from LLM response, using raw text.")
             summary = ""
+            sources = []
 
         return {
             "answer": answer,
-            "summary": summary or answer,
-            "sources": source_urls
+            "summary": summary,
+            "sources": sources
         }
 
     except Exception as e:

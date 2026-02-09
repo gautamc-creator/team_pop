@@ -96,7 +96,7 @@ def run_elastic_crawler(target_url : str):
             detach=True,
             remove=False, # Auto-delete container when done
             # Use 'host' network if Elastic is on localhost, otherwise 'bridge' is fine
-            network_mode="host" if "localhost" in elastic_url or "127.0.0.1" in elastic_url else "bridge"
+            network_mode="host" if "localhost" in os.getenv("ELASTIC_URL") or "127.0.0.1" in os.getenv("ELASTIC_URL") else "bridge"
         )
         print(f"Container started: {container.id[:10]}.Waiting for logs")
         

@@ -9,3 +9,4 @@ langfuse
 # --- Add these new lines ---
 docker
 pyyaml
+elevenlabs

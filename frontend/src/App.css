@@ -219,3 +219,95 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Home Page Styles */
+.home-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 80px;
+  text-align: center;
+}
+
+.hero-section h1 {
+  font-size: 56px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 16px;
+  letter-spacing: -1px;
+}
+
+.hero-subtitle {
+  font-size: 20px;
+  color: var(--text-1);
+  margin-bottom: 40px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.hero-buttons .btn {
+  padding: 14px 28px;
+  font-size: 16px;
+}
+
+/* Docs Page */
+.docs-container {
+  margin: 40px auto;
+  max-width: 800px;
+}
+
+.docs-content {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.docs-content ul {
+    margin-left: 20px;
+    color: var(--text-1);
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+/* Page Container for content below header */
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Stepper Interactivity */
+.step {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.step:hover {
+  opacity: 0.8;
+}
+
+/* Completed Step (Green) */
+.step.completed .step-dot {
+  background: #66f2c1; /* Green */
+  box-shadow: 0 0 8px rgba(102, 242, 193, 0.4);
+}
+
+.step.completed {
+    color: #e9f0f6; /* brighter text */
+}
+
