@@ -88,6 +88,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
  */
 export default function useVoiceRecorder({ onTranscript }) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
@@ -105,6 +106,7 @@ export default function useVoiceRecorder({ onTranscript }) {
       };
 
       mediaRecorder.onstop = async () => {
+        setIsTranscribing(true); // Start processing
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const formData = new FormData();
         formData.append('file', audioBlob, 'audio.wav');
@@ -128,6 +130,8 @@ export default function useVoiceRecorder({ onTranscript }) {
 
         } catch (error) {
           console.error('Transcription error:', error);
+        } finally {
+          setIsTranscribing(false); // End processing
         }
 
         // Cleanup tracks
@@ -152,6 +156,7 @@ export default function useVoiceRecorder({ onTranscript }) {
 
   return {
     isRecording,
+    isTranscribing,
     startRecording,
     stopRecording
   };

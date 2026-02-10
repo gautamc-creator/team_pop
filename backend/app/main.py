@@ -185,26 +185,32 @@ async def chat(req: ChatRequest):
         logging.info(f"🔍 Context: {context_text}")
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""
-        ### ROLE
-        You are a helpful, enthusiastic AI assistant. Your responses are designed to be displayed in a chat bubble AND read aloud by a Text-to-Speech (TTS) engine.
+                ### ROLE
+                You are an elite Personal Stylist for [Brand Name]. You are knowledgeable, fashion-forward, and sales-oriented but never pushy. You speak like a helpful friend who knows fashion.
 
-        ### OBJECTIVES
-        1. **Answer Questions:** Use ONLY the provided [CONTEXT]. If the answer is missing, say: "I'm sorry, I don't have that information right now, but I'd love to help with something else!"
-        2. **Detailed Answer (for UI):** Provide a short answer that is minimal for the user to get his answer not to be long for the user to read.
-        3. **TTS-Optimized Summary (for Audio):** Create a short, one-linear summary of the answer. Avoid special characters (like asterisks or complex brackets) in the summary that might trip up a voice model.
-        4. **Tone:** Professional, energetic, and concise.
+                ### OBJECTIVES
+                1. **The "Soft Match" Rule:** Never say "No" or "I don't have that."
+                - If user asks for "Beige" and you have "Sand/Cream", say: "I have this gorgeous Sand option that is very close..."
+                - If user asks for "Gown" and you have "Maxi Dress", say: "This Maxi dress gives a similar elegant silhouette..."
+                2. **Style Advice:** Don't just list items. Briefly mention *why* it's good (e.g., "perfect for summer evenings" or "the fabric is super breathable").
+                3. **Voice vs. Text:**
+                - **Audio (summary):** Short, energetic, 10-15 words max. No special characters.
+                - **Visual (answer):** slightly more detailed. You can mention specific details like fit or material here.
 
-        ### OUTPUT FORMAT
-        Return a JSON object only.
-        {{
-          "answer": "The answer to be displayed textually.",
-          "summary": "A conversational, short, and punchy overview for audio/TTS. No URLs here.",
-          "links": ["https://link1.com", "https://link2.com"]
-        }}
+                ### INPUT CONTEXT
+                {context_text}
 
-        ### CONTEXT DATA
-        {context_text}
-        """
+                ### OUTPUT FORMAT (JSON ONLY)
+                {{
+                "summary": "Short, punchy sentence for TTS audio. (e.g. 'I found this amazing floral dress that matches your vibe!')",
+                "answer": "The text bubble version. (e.g. 'I found this amazing floral dress! It features a breathable linen blend, perfect for summer. Check it out below.')",
+                "links": ["https://url-to-product..."]
+                }}
+
+                ### CONSTRAINTS
+                - If ABSOLUTELY no similar items exist in context, return "summary": null.
+                - Do not make up products not in the context.
+            """
 
         # 4. Format History for Gemini
         gemini_history = []
@@ -242,39 +248,49 @@ async def chat(req: ChatRequest):
             # Attempt to parse
             parsed = json.loads(cleaned_text, strict=False)
             
-            # 'answer' for the chat bubble
-            answer = parsed.get("answer", parsed.get("summary", "I couldn't generate an answer."))
-            
             # 'summary' for TTS
             summary = parsed.get("summary", "")
-            if not summary and answer:
-                 # Fallback: use first sentence/shortened answer if summary is missing
-                 summary = answer[:150] + "..." if len(answer) > 150 else answer
-
-            # 'sources' gets the array of links
-            sources = parsed.get("links", []) 
+            
+            # 'answer' for Text Bubble (Visual)
+            answer = parsed.get("answer", "")
+            
+            # Fallback: If answer is empty, use summary. If summary is empty, use generic error.
+            if not answer and summary:
+                answer = summary
+            
+            # DEFAULT "SORRY" MESSAGE LOGIC
+            if not summary:
+                 fallback_msg = "I'm sorry, I don't have that information right now, but I'd love to help with something else!"
+                 summary = fallback_msg
+                 if not answer:
+                     answer = fallback_msg
+                 sources = []
+            else:
+                 # 'sources' gets the array of links ONLY if we found an answer
+                 sources = parsed.get("links", [])
 
         except Exception as e:
             logging.warning(f"Failed to parse JSON from LLM response: {e}. Raw text: {response.text}")
             
-            # FALLBACK: If JSON parsing fails, try to "rescue" the answer if it looks like the raw JSON
-            # This is a regex heuristic to find "answer": "..." content
+            # FALLBACK: Try to rescue via Regex
             import re
-            match = re.search(r'"answer"\s*:\s*"(.*?)"(?:\s*,|\s*})', response.text, re.DOTALL)
-            if match:
-                 answer = match.group(1).replace(r'\n', '\n').replace(r'\"', '"')
-                 summary = answer[:100]
-                 sources = []
-            else:
-                 # If all else fails, just return the raw text but clean it up slightly if it looks like code
-                 answer = response.text.replace('```json', '').replace('```', '')
+            summary_match = re.search(r'"summary"\s*:\s*"(.*?)"', response.text, re.DOTALL)
+            answer_match = re.search(r'"answer"\s*:\s*"(.*?)"', response.text, re.DOTALL)
             
-            if not summary:
-                summary = "I found some information."
+            if summary_match:
+                 summary = summary_match.group(1).replace(r'\n', '\n').replace(r'\"', '"')
+            else:
+                 summary = "I'm sorry, I don't have that information right now."
+            
+            if answer_match:
+                 answer = answer_match.group(1).replace(r'\n', '\n').replace(r'\"', '"')
+            else:
+                 answer = summary # Fallback to summary if answer extraction fails
+                 
             sources = []
-
+            
         return {
-            "answer": answer,
+            "answer": answer, 
             "summary": summary,
             "sources": sources
         }

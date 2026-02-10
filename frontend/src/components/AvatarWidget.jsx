@@ -16,7 +16,7 @@ const LOADING_PHRASES = [
 
 export default function AvatarWidget({ domain, preview = false }) {
     // --- STATE ---
-    // Visual States: 'IDLE', 'LISTENING', 'THINKING', 'SPEAKING'
+    // Visual States: 'IDLE', 'LISTENING', 'TRANSCRIBING', 'THINKING', 'GENERATING_AUDIO', 'SPEAKING'
     const [visualState, setVisualState] = useState('IDLE');
     const [bubbleText, setBubbleText] = useState("Hi! Tap me to speak.");
     // Changed: isExpanded -> isOpen. Default closed (false), unless preview (true)
@@ -92,9 +92,11 @@ export default function AvatarWidget({ domain, preview = false }) {
         try {
             // 3. Call /chat (Elastic + Gemini)
             const data = await api.chat(updatedMessages, domain);
-            const answerText = data.answer || "I'm not sure.";
-            const summaryText = data.summary || answerText; // Use summary for TTS, fallback to answer
-            const sources = data.sources || []; // This is now an array ["url1", "url2"]
+            
+            // Backend now returns 'answer' for visual chat and 'summary' for TTS
+            const answerText = data.answer || data.summary || "I'm sorry, I couldn't find an answer.";
+            const summaryText = data.summary || answerText; // Fallback if summary missing
+            const sources = data.sources || []; 
 
             // 1. TTS Text (Clean Summary)
             let ttsContent = summaryText; 
@@ -117,10 +119,10 @@ export default function AvatarWidget({ domain, preview = false }) {
             }
 
             // 3. Set State
-            // setBubbleText(formattedText); // No longer needed for display, messages array handles it
             setMessages(prev => [...prev, { role: 'assistant', content: formattedText }]); // Store full HTML in history
 
             // 4. Play TTS (using the clean text)
+            setVisualState('GENERATING_AUDIO');
             await playTTS(ttsContent);
 
         } catch (error) {
@@ -131,21 +133,35 @@ export default function AvatarWidget({ domain, preview = false }) {
     };
 
     // --- 2. INITIALIZE HOOK ---
-    const { isRecording, startRecording, stopRecording } = useVoiceRecorder({
+    const { isRecording, isTranscribing, startRecording, stopRecording } = useVoiceRecorder({
         onTranscript: handleTranscript
     });
 
     const [prevIsRecording, setPrevIsRecording] = useState(false);
+    const [prevIsTranscribing, setPrevIsTranscribing] = useState(false);
 
     // Sync Hook state with Visual State (during render to avoid effect/flicker)
     if (isRecording !== prevIsRecording) {
         setPrevIsRecording(isRecording);
         if (isRecording) {
-             // Only switch to listening if not already (though implicit here)
              if (visualState !== 'LISTENING') setVisualState('LISTENING');
         } else {
-             // If stopped recording and was listening, go to thinking
-             if (visualState === 'LISTENING') setVisualState('THINKING');
+             // If stopped recording, and NOT transcribing yet (transcribing state handles next transition)
+             if (visualState === 'LISTENING' && !isTranscribing) {
+                // If isTranscribing tracks closely, this might be skipped, but okay as fallback
+             }
+        }
+    }
+
+    if (isTranscribing !== prevIsTranscribing) {
+        setPrevIsTranscribing(isTranscribing);
+        if (isTranscribing) {
+             setVisualState('TRANSCRIBING');
+             setBubbleText("Transcribing...");
+        } else {
+             // Finished transcribing, will move to THINKING via handleTranscript, 
+             // or back to IDLE if error/no text. 
+             // handleTranscript will override this to THINKING.
         }
     }
 
@@ -162,6 +178,7 @@ export default function AvatarWidget({ domain, preview = false }) {
             console.log("Audio Blob Size:", audioBlob.size);
             if (audioBlob.size < 100) {
                 console.error("Audio file too small - likely an error message");
+                setVisualState('IDLE');
                 return;
             }
 
@@ -173,6 +190,7 @@ export default function AvatarWidget({ domain, preview = false }) {
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
                     console.error("Browser Blocked Audio:", error);
+                    setVisualState('IDLE');
                 })
 
             }
@@ -222,13 +240,15 @@ export default function AvatarWidget({ domain, preview = false }) {
 
             {/* 3. EXPANDABLE BUBBLE - Only render if OPEN */}
             {isOpen && (
-                <div className={`bubble ${visualState === 'THINKING' ? 'pulse' : ''}`}>
+                <div className={`bubble ${visualState === 'THINKING' || visualState === 'TRANSCRIBING' || visualState === 'GENERATING_AUDIO' ? 'pulse' : ''}`}>
 
                     {/* Header Actions */}
                     <div className="bubble-header">
                         <span className={`bubble-status pill ${visualState.toLowerCase()}`}>
                             {visualState === 'LISTENING' && 'Listening'}
+                            {visualState === 'TRANSCRIBING' && 'Transcribing'}
                             {visualState === 'THINKING' && 'Thinking'}
+                            {visualState === 'GENERATING_AUDIO' && 'Generating Audio'}
                             {visualState === 'SPEAKING' && 'Speaking'}
                             {visualState === 'IDLE' && 'Ready'}
                         </span>
@@ -266,9 +286,18 @@ export default function AvatarWidget({ domain, preview = false }) {
                              </div>
                         )}
                         
-                        {visualState === 'THINKING' && (
+                        {visualState === 'TRANSCRIBING' && (
                              <div className="status-message">
-                                 <span>{bubbleText}</span>
+                                 <span>Transcribing...</span>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                                 <div className="typing-dot"></div>
+                             </div>
+                        )}
+
+                        {(visualState === 'THINKING' || visualState === 'GENERATING_AUDIO') && (
+                             <div className="status-message">
+                                 <span>{visualState === 'GENERATING_AUDIO' ? "Generating Audio..." : bubbleText}</span>
                                  <div className="typing-dot"></div>
                                  <div className="typing-dot"></div>
                                  <div className="typing-dot"></div>
@@ -289,10 +318,10 @@ export default function AvatarWidget({ domain, preview = false }) {
                          setIsOpen(true);
                      } else {
                          // If open, perform standard interaction (toggle recording/stop audio)
-                         if (visualState !== 'THINKING') handleInteraction();
+                         if (visualState !== 'THINKING' && visualState !== 'TRANSCRIBING' && visualState !== 'GENERATING_AUDIO') handleInteraction();
                      }
                 }}
-                style={{cursor:visualState === "THINKING" ? 'wait' : 'pointer'}}
+                style={{cursor: (visualState === "THINKING" || visualState === "TRANSCRIBING" || visualState === "GENERATING_AUDIO") ? 'wait' : 'pointer'}}
                 title={visualState === 'SPEAKING' ? "Click to Stop" : "Click to Speak"}
             >
                 <div className="orb-core"></div>
