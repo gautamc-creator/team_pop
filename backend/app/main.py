@@ -186,30 +186,36 @@ async def chat(req: ChatRequest):
         # 3. Construct the System Prompt
         SYSTEM_PROMPT = f"""
                 ### ROLE
-                You are an elite Personal Stylist for [Brand Name]. You are knowledgeable, fashion-forward, and sales-oriented but never pushy. You speak like a helpful friend who knows fashion.
+                You are an elite Personal Stylist for [Brand Name]. You are knowledgeable, fashion-forward, and sales-oriented.
 
                 ### OBJECTIVES
-                1. **The "Soft Match" Rule:** Never say "No" or "I don't have that."
-                - If user asks for "Beige" and you have "Sand/Cream", say: "I have this gorgeous Sand option that is very close..."
-                - If user asks for "Gown" and you have "Maxi Dress", say: "This Maxi dress gives a similar elegant silhouette..."
-                2. **Style Advice:** Don't just list items. Briefly mention *why* it's good (e.g., "perfect for summer evenings" or "the fabric is super breathable").
-                3. **Voice vs. Text:**
-                - **Audio (summary):** Short, energetic, 10-15 words max. No special characters.
-                - **Visual (answer):** slightly more detailed. You can mention specific details like fit or material here.
-
+                1. **Soft Match:** Never say "No". Suggest alternatives.
+                2. **Style Advice:** Briefly explain *why* an item is good.
+                3. **Mobile-First Response:**
+                   - **Audio (summary):** Max 15 words. High energy.
+                   - **Visual (answer):** Concise. Focus on benefits.
+                
                 ### INPUT CONTEXT
                 {context_text}
 
                 ### OUTPUT FORMAT (JSON ONLY)
                 {{
-                "summary": "Short, punchy sentence for TTS audio. (e.g. 'I found this amazing floral dress that matches your vibe!')",
-                "answer": "The text bubble version. (e.g. 'I found this amazing floral dress! It features a breathable linen blend, perfect for summer. Check it out below.')",
-                "links": ["https://url-to-product..."]
+                    "summary": "Short, punchy sentence for TTS audio.",
+                    "answer": "The text bubble version.",
+                    "products": [
+                        {{
+                            "name": "Product Name",
+                            "price": "Price (e.g. ₹2,500)",
+                            "image_url": "https://...", 
+                            "product_url": "https://..."
+                        }}
+                    ]
                 }}
 
                 ### CONSTRAINTS
-                - If ABSOLUTELY no similar items exist in context, return "summary": null.
-                - Do not make up products not in the context.
+                - If no products match, return "products": [].
+                - **Crucial:** Always try to find the 'product_url' so the user can buy it.
+                - If image is missing, leave 'image_url' empty (frontend will handle it).
             """
 
         # 4. Format History for Gemini
@@ -241,18 +247,26 @@ async def chat(req: ChatRequest):
         try:
             # Clean up potential markdown formatting in JSON response
             cleaned_text = response.text.strip()
-            # Remove markdown code blocks if present
-            if "```" in cleaned_text:
-                cleaned_text = cleaned_text.split("```json")[-1].split("```")[0].strip()
             
-            # Attempt to parse
+            # Robustly extract JSON if wrapped in code blocks or other text
+            import re
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', cleaned_text, re.DOTALL)
+            if json_match:
+                 cleaned_text = json_match.group(1)
+            else:
+                # If no code blocks, try to find the first '{' and last '}'
+                # This handles cases where the LLM might output text before/after the JSON without code blocks
+                first_brace = cleaned_text.find('{')
+                last_brace = cleaned_text.rfind('}')
+                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                    cleaned_text = cleaned_text[first_brace:last_brace+1]
+            
+             # Attempt to parse
             parsed = json.loads(cleaned_text, strict=False)
             
-            # 'summary' for TTS
             summary = parsed.get("summary", "")
-            
-            # 'answer' for Text Bubble (Visual)
             answer = parsed.get("answer", "")
+            products = parsed.get("products", []) # NEW: Extract products
             
             # Fallback: If answer is empty, use summary. If summary is empty, use generic error.
             if not answer and summary:
@@ -267,8 +281,8 @@ async def chat(req: ChatRequest):
                  sources = []
             else:
                  # 'sources' gets the array of links ONLY if we found an answer
-                 sources = parsed.get("links", [])
-
+                sources = [p.get('product_url') for p in products if p.get('product_url')]
+           
         except Exception as e:
             logging.warning(f"Failed to parse JSON from LLM response: {e}. Raw text: {response.text}")
             
@@ -288,11 +302,13 @@ async def chat(req: ChatRequest):
                  answer = summary # Fallback to summary if answer extraction fails
                  
             sources = []
+            products = []
             
         return {
             "answer": answer, 
             "summary": summary,
-            "sources": sources
+            "sources": sources,
+            "products": products
         }
 
     except Exception as e:

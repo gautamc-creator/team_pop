@@ -6,36 +6,84 @@ import '../styles/AvatarWidget.css';
 
 
 const LOADING_PHRASES = [
-    "Consulting the universe...",
-    "Decoding the matrix...",
-    "Searching the knowledge base...",
-    "Thinking really hard...",
-    "Connecting the dots...",
-    "Asking the elders..."
+    "Checking the inventory...", "Finding the best look...", "Asking the fashion gods..."
 ];
+
+// --- CONSTANTS ---
+// 1. DUMMY IMAGE: Use a placeholder or a local asset
+const DUMMY_IMAGE = "https://placehold.co/400x400/1a1a1a/white?text=No+Image"; 
+
+// --- SUB-COMPONENT: PRODUCT CARD (Carousel Item) ---
+const ProductCard = ({ product }) => {
+    // Logic: Use provided image, OR fallback to Dummy
+    const displayImage = product.image_url || DUMMY_IMAGE;
+
+    return (
+        <a href={product.product_url} target="_blank" rel="noopener noreferrer" className="product-card-link">
+            <div className="product-card">
+                <div className="card-image-container">
+                    <img 
+                        src={displayImage} 
+                        alt={product.name} 
+                        className="product-thumb" 
+                        onError={(e) => { e.target.src = DUMMY_IMAGE; }} // Safety net if URL is broken
+                    />
+                </div>
+                <div className="product-info">
+                    <div className="product-name" title={product.name}>{product.name}</div>
+                    <div className="product-footer">
+                         {/* Display price if available, else 'View' */}
+                        <span className="product-price">{product.price || "View Item"}</span>
+                        <span className="shop-icon">→</span>
+                    </div>
+                </div>
+            </div>
+        </a>
+    );
+};
 
 export default function AvatarWidget({ domain, preview = false }) {
     // --- STATE ---
     // Visual States: 'IDLE', 'LISTENING', 'TRANSCRIBING', 'THINKING', 'GENERATING_AUDIO', 'SPEAKING'
     const [visualState, setVisualState] = useState('IDLE');
-    const [bubbleText, setBubbleText] = useState("Hi! Tap me to speak.");
+    // const [bubbleText, setBubbleText] = useState("Hi! Tap me to speak.");
     // Changed: isExpanded -> isOpen. Default closed (false), unless preview (true)
     const [isOpen, setIsOpen] = useState(preview);
+    const [latestProducts, setLatestProducts] = useState([]); // Store products for transient carousel
 
     // Chat History (Kept from your original ChatWidget to maintain context)
     const [messages, setMessages] = useState([
         { role: 'assistant', content: 'Hi! I am your AI assistant.' }
     ]);
 
+
     const audioPlayerRef = useRef(new Audio());
     const chatContainerRef = useRef(null);
 
+
+    const [transientMessage, setTransientMessage] = useState(null);
+    const [isFadingOut, setIsFadingOut] = useState(false);
+    const transientTimeoutRef = useRef(null);
+
     // Auto-scroll to bottom of chat
+   // ... (Keep auto-scroll useEffect) ...
     useEffect(() => {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages, visualState, isOpen]);
+
+    // ... (Keep showTransientMessage helper) ...
+    const showTransientMessage = (text) => {
+        if (isOpen) return; 
+        if (transientTimeoutRef.current) clearTimeout(transientTimeoutRef.current);
+        setIsFadingOut(false);
+        setTransientMessage(text);
+        transientTimeoutRef.current = setTimeout(() => {
+            setIsFadingOut(true); 
+            setTimeout(() => setTransientMessage(null), 300);
+        }, 6000);
+    };
 
     const getRandomLoadingPhrase = () => {
         return LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)];
@@ -59,13 +107,14 @@ export default function AvatarWidget({ domain, preview = false }) {
             // Start Listening
             // Ensure audio is stopped and cleared (in case coming from IDLE with old src)
             audioPlayerRef.current.pause();
+
             if (audioPlayerRef.current.src) {
                  audioPlayerRef.current.src = ""; 
             }
 
-            setBubbleText("Listening...");
-            setIsOpen(true); // Auto-open when interacting
-            
+            // setBubbleText("Listening...");
+            // setIsOpen(true); // Auto-open when interacting
+            showTransientMessage("Listening...");
             // Note: We removed the 'warm up' play() call because it was causing replays of old audio.
             // Modern browsers usually allow AudioContext resume on user gesture (click), which startRecording handles.
             startRecording();
@@ -82,8 +131,9 @@ export default function AvatarWidget({ domain, preview = false }) {
 
         // 1. Update UI to Thinking
         setVisualState('THINKING');
-        setBubbleText(getRandomLoadingPhrase());
-        setIsOpen(true); // Ensure open
+        // setBubbleText(getRandomLoadingPhrase());
+        showTransientMessage(getRandomLoadingPhrase());
+        // setIsOpen(true); // Ensure open
 
         // 2. Add User Message to History
         const updatedMessages = [...messages, { role: 'user', content: text }];
@@ -96,38 +146,44 @@ export default function AvatarWidget({ domain, preview = false }) {
             // Backend now returns 'answer' for visual chat and 'summary' for TTS
             const answerText = data.answer || data.summary || "I'm sorry, I couldn't find an answer.";
             const summaryText = data.summary || answerText; // Fallback if summary missing
-            const sources = data.sources || []; 
+            const products  = data.products || []; 
+
+            if (products.length > 0) {
+                setLatestProducts(products); // Show carousel even if closed
+            }
 
             // 1. TTS Text (Clean Summary)
-            let ttsContent = summaryText; 
+            
 
             // 2. Display Text (Summary + HTML Links)
             // First, format the text (e.g. bolding)
             let formattedText = formatTextForDisplay(answerText);
 
             // Then, append sources if they exist
-            if (sources.length > 0) {
-                formattedText += '<br/><div class="sources-container" style="margin-top:8px; font-size: 0.85em; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">';
-                formattedText += '<strong>Sources:</strong><ul style="padding-left: 20px; margin: 4px 0;">';
+            // if (sources.length > 0) {
+            //     formattedText += '<br/><div class="sources-container" style="margin-top:8px; font-size: 0.85em; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">';
+            //     formattedText += '<strong>Sources:</strong><ul style="padding-left: 20px; margin: 4px 0;">';
 
-                sources.forEach((src, idx) => {
-                     // Create a clickable link for each source
-                     formattedText += `<li><a href="${src}" target="_blank" rel="noopener noreferrer" style="color: #61dafb; text-decoration: underline;">Source ${idx + 1}</a></li>`;
-                });
+            //     sources.forEach((src, idx) => {
+            //          // Create a clickable link for each source
+            //          formattedText += `<li><a href="${src}" target="_blank" rel="noopener noreferrer" style="color: #61dafb; text-decoration: underline;">Source ${idx + 1}</a></li>`;
+            //     });
 
-                formattedText += '</ul></div>';
-            }
+            //     formattedText += '</ul></div>';
+            // }
 
             // 3. Set State
-            setMessages(prev => [...prev, { role: 'assistant', content: formattedText }]); // Store full HTML in history
+            setMessages(prev => [...prev, { role: 'assistant', content: formattedText , products : products }]); // Store full HTML in history
 
+            showTransientMessage(summaryText)
+ 
             // 4. Play TTS (using the clean text)
             setVisualState('GENERATING_AUDIO');
-            await playTTS(ttsContent);
+            await playTTS(summaryText);
 
         } catch (error) {
             console.error(error);
-            setBubbleText("Error connecting.");
+            showTransientMessage("Error connecting.");
             setVisualState('IDLE');
         }
     };
@@ -157,7 +213,7 @@ export default function AvatarWidget({ domain, preview = false }) {
         setPrevIsTranscribing(isTranscribing);
         if (isTranscribing) {
              setVisualState('TRANSCRIBING');
-             setBubbleText("Transcribing...");
+             // setBubbleText("Transcribing...");
         } else {
              // Finished transcribing, will move to THINKING via handleTranscript, 
              // or back to IDLE if error/no text. 
@@ -234,100 +290,60 @@ export default function AvatarWidget({ domain, preview = false }) {
 
 
 
-    // --- 4. RENDER ---
+
+   // --- RENDER ---
     return (
-        <div className={`avatar-widget ${preview ? 'preview' : ''} ${isOpen ? 'mode-open' : 'mode-closed'}`}>
+        <div className={`avatar-widget ${isOpen ? 'mode-open' : 'mode-closed'}`}>
 
-            {/* 3. EXPANDABLE BUBBLE - Only render if OPEN */}
-            {isOpen && (
-                <div className={`bubble ${visualState === 'THINKING' || visualState === 'TRANSCRIBING' || visualState === 'GENERATING_AUDIO' ? 'pulse' : ''}`}>
-
-                    {/* Header Actions */}
-                    <div className="bubble-header">
-                        <span className={`bubble-status pill ${visualState.toLowerCase()}`}>
-                            {visualState === 'LISTENING' && 'Listening'}
-                            {visualState === 'TRANSCRIBING' && 'Transcribing'}
-                            {visualState === 'THINKING' && 'Thinking'}
-                            {visualState === 'GENERATING_AUDIO' && 'Generating Audio'}
-                            {visualState === 'SPEAKING' && 'Speaking'}
-                            {visualState === 'IDLE' && 'Ready'}
-                        </span>
-                        
-                        <button
-                            className="expand-btn"
-                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
-                        >
-                            Close
-                        </button>
-                    </div>
-
-                    {/* Content Area */}
-                    <div className="bubble-content chat-history" ref={chatContainerRef}>
-                        {messages.map((msg, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`message-bubble ${msg.role === 'user' ? 'user-message' : 'assistant-message'}`}
-                            >
-                                {msg.role === 'assistant' ? (
-                                    <div dangerouslySetInnerHTML={{ __html: msg.content }} />
-                                ) : (
-                                    msg.content
-                                )}
-                            </div>
+            {/* 3. TRANSIENT CAROUSEL (Centered Above Orb) */}
+            {!isOpen && latestProducts.length > 0 && (
+                <div className="transient-carousel-container">
+                    <button className="close-carousel-btn" onClick={() => setLatestProducts([])}>×</button>
+                    <div className="products-carousel">
+                        {latestProducts.map((p, pIdx) => (
+                            <ProductCard key={pIdx} product={p} />
                         ))}
-                        
-                        {/* Transient State Indicators */}
-                        {visualState === 'LISTENING' && (
-                             <div className="status-message">
-                                 <span>Listening...</span>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                             </div>
-                        )}
-                        
-                        {visualState === 'TRANSCRIBING' && (
-                             <div className="status-message">
-                                 <span>Transcribing...</span>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                             </div>
-                        )}
-
-                        {(visualState === 'THINKING' || visualState === 'GENERATING_AUDIO') && (
-                             <div className="status-message">
-                                 <span>{visualState === 'GENERATING_AUDIO' ? "Generating Audio..." : bubbleText}</span>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                                 <div className="typing-dot"></div>
-                             </div>
-                        )}
                     </div>
-
-                    <div className="bubble-arrow"></div>
                 </div>
             )}
 
-            {/* ORB AVATAR */}
-            <div
-                className={`orb-avatar ${visualState}`}
-                onClick={() => {
-                     // Logic: If closed, open. If open and idle, handle interaction.
-                     if (!isOpen) {
-                         setIsOpen(true);
-                     } else {
-                         // If open, perform standard interaction (toggle recording/stop audio)
-                         if (visualState !== 'THINKING' && visualState !== 'TRANSCRIBING' && visualState !== 'GENERATING_AUDIO') handleInteraction();
-                     }
-                }}
-                style={{cursor: (visualState === "THINKING" || visualState === "TRANSCRIBING" || visualState === "GENERATING_AUDIO") ? 'wait' : 'pointer'}}
-                title={visualState === 'SPEAKING' ? "Click to Stop" : "Click to Speak"}
-            >
-                <div className="orb-core"></div>
-                <div className="orb-ring"></div>
-            </div>
+            {/* 4. ORB & CONTROLS CONTAINER */}
+            <div className="avatar-controls">
+                
+                {/* STATUS BADGE (Above Orb) */}
+                {!isOpen && (
+                    <div className={`status-badge ${visualState === 'IDLE' ? 'status-idle' : 'status-active'}`}>
+                        {visualState === 'IDLE' ? 'Ready' : visualState}
+                    </div>
+                )}
 
+                <div className="orb-row">
+                     {/* AVATAR */}
+                    <div className={`orb-avatar ${visualState}`} onClick={handleInteraction}>
+                        <div className="orb-core"></div>
+                        <div className="orb-ring"></div>
+                    </div>
+
+                    {/* TRANSIENT MESSAGE (Right of Orb) */}
+                    {!isOpen && transientMessage && (
+                        <div className={`transient-bubble ${isFadingOut ? 'fading-out' : ''}`}>
+                            {transientMessage}
+                        </div>
+                    )}
+
+                    {/* VIEW CHAT BUTTON (Right of Orb) */}
+                    {!isOpen && !transientMessage && (
+                        <button 
+                            className="view-chat-btn"
+                            onClick={() => setIsOpen(true)}
+                        >
+                            View Chat
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
+
 }
+

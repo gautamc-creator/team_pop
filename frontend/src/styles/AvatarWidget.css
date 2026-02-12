@@ -1,18 +1,77 @@
+
 /* --- CONTAINER --- */
 .avatar-widget {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  /* Revert to simple containment for the Orb */
+  bottom: 16px; 
+  left: 16px;
+  right: auto;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end; 
+  flex-direction: column; 
+  align-items: flex-start;
   z-index: 9999;
   font-family: 'Space Grotesk', sans-serif;
-  pointer-events: none;
-  /* Ensure container doesn't take full screen, just where content is */
-  width: auto;
-  height: auto;
+  pointer-events: none; 
+}
+
+/* --- CONTROLS LAYOUT --- */
+.avatar-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    pointer-events: none; /* Children will re-enable */
+}
+
+.orb-row {
+    display: flex;
+    align-items: center;
+    gap: 12px; 
+    pointer-events: auto;
+}
+
+/* --- STATUS BADGE (Above Orb) --- */
+.status-badge {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-1);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 8px;
+    margin-left: 12px; /* Align slightly with Orb center visually */
+    pointer-events: auto;
+    transition: all 0.2s;
+}
+
+.status-badge.status-active {
+    color: #081018;
+    background: #5effb1;
+    box-shadow: 0 0 10px rgba(94, 255, 177, 0.4);
+    border: none;
+}
+
+/* --- VIEW CHAT BUTTON --- */
+.view-chat-btn {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 16px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    animation: fadeIn 0.3s ease;
+}
+
+.view-chat-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
 }
 
 .avatar-widget.preview {
@@ -28,7 +87,8 @@
   /* Absolute position relative to the avatar-widget container */
   position: absolute;
   bottom: 100%; /* Push to top of container (above Orb) */
-  right: 0;     /* Align right with Orb */
+  left:0;
+  right:auto;    /* Align right with Orb */
   margin-bottom: 16px; /* Space between Orb and Bubble */
   
   background: rgba(15, 24, 34, 0.72);
@@ -42,7 +102,8 @@
   max-height: 80vh; 
   
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 24px;
+  border-bottom-left-radius: 4px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
   color: var(--text-0);
   pointer-events: auto;
@@ -64,6 +125,141 @@
   max-height: none;
 }
 
+/* --- 2. TRANSIENT "FADE UI" (Closed Mode) --- */
+/* --- 2. TRANSIENT "FADE UI" (Closed Mode) --- */
+.transient-bubble {
+  /* Positioned relative to the flex row */
+  position: relative; 
+  bottom: auto;
+  left: auto;
+  margin-left: 0;
+  
+  width: max-content;
+  max-width: 60vw;
+  
+  background: rgba(5, 5, 5, 0.95); /* Nearly opaque black */
+  backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 20px;
+  border-bottom-left-radius: 4px; /* Callout style */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  
+  color: #fff;
+  font-size: 15px; /* Larger text */
+  font-weight: 500; /* Bolder */
+  line-height: 1.4;
+  pointer-events: auto;
+  
+  /* Animation */
+  opacity: 0;
+  transform: translateX(-10px);
+  animation: fadeSlideIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.transient-bubble.fading-out {
+  animation: fadeSlideOut 0.3s ease forwards;
+}
+
+@keyframes fadeSlideIn {
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeSlideOut {
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+/* --- PRODUCT CARDS --- */
+/* ... (Keep existing Container, Bubble, Transient styles from previous turn) ... */
+
+/* --- PRODUCT CAROUSEL (Horizontal Scroll) --- */
+.products-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto; /* Enable horizontal scroll */
+  padding: 8px 4px 12px 4px; /* Bottom padding for scrollbar space */
+  margin-top: 12px;
+  width: 100%;
+  
+  /* Hide Scrollbar for clean look (optional, but good for mobile) */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.products-carousel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* --- PRODUCT CARD --- */
+.product-card-link {
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0; /* Prevent cards from squishing */
+}
+
+.product-card {
+  width: 140px; /* Fixed width for carousel items */
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s ease, background 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:active {
+  transform: scale(0.96);
+}
+
+.card-image-container {
+  width: 100%;
+  height: 100px; /* Fixed height for image area */
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.product-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensures image fills the box nicely */
+  opacity: 0.9;
+}
+
+.product-info {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Truncate long names */
+}
+
+.product-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-price {
+  font-size: 11px;
+  color: #5effb1; /* Greenish for money/price */
+  font-weight: 600;
+}
+
+.shop-icon {
+  font-size: 14px;
+  color: rgba(255,255,255,0.4);
+}
 /* ... headers/content ... */
 
 /* REMOVED: .avatar-widget.mode-expanded .bubble - merged into default .bubble */
@@ -154,7 +350,9 @@
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.5));
   transition: transform 0.2s ease;
   flex-shrink: 0; /* Prevent shrinking in flex container */
+  order: 2;
 }
+
 
 .orb-avatar:hover {
   transform: translateY(-2px);
@@ -364,5 +562,63 @@
   0% { transform: rotate(0deg) scale(1); }
   50% { transform: rotate(180deg) scale(1.1); }
   100% { transform: rotate(360deg) scale(1); }
+}
+
+
+/* --- TRANSIENT CAROUSEL (Centered) --- */
+/* --- TRANSIENT CAROUSEL (Centered Above Orb) --- */
+.transient-carousel-container {
+    position: fixed;
+    bottom: 140px; /* Anchored above the orb controls */
+    left: 50%;
+    transform: translateX(-50%); /* Horizontally centered */
+    width: 90vw;
+    max-width: 400px;
+    background: rgba(15, 24, 34, 0.9);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 24px 16px;
+    z-index: 10001; 
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes popUp {
+    from { opacity: 0; transform: translate(-50%, 20px) scale(0.9); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.transient-carousel-container .products-carousel {
+    justify-content: flex-start; /* Scrolling behavior */
+    margin-top: 12px;
+}
+
+/* Ensure cards in transient view look good */
+.transient-carousel-container .product-card {
+    width: 160px; /* Slightly larger in focused view */
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.close-carousel-btn {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff;
+    color: #000;
+    border: none;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 2;
 }
 
