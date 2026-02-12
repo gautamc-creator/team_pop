@@ -1,4 +1,3 @@
-
 /* --- CONTAINER --- */
 .avatar-widget {
   position: fixed;
@@ -10,615 +9,261 @@
   align-items: flex-start;
   z-index: 9999;
   font-family: 'Space Grotesk', sans-serif;
-  pointer-events: none; 
+  pointer-events: none; /* Let clicks pass through empty areas */
 }
 
-/* --- CONTROLS LAYOUT --- */
-.avatar-controls {
+/* --- SHOPPING MODE (Full Screen Overlay) --- */
+.shopping-mode-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(15, 24, 34, 0.90);
+    backdrop-filter: blur(15px);
+    z-index: 9998;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    pointer-events: none; /* Children will re-enable */
-}
-
-.orb-row {
-    display: flex;
     align-items: center;
-    gap: 12px; 
+    justify-content: flex-start; /* Start from top */
+    padding-top: 80px; /* Give some space from top */
     pointer-events: auto;
+    animation: fadeIn 0.4s ease-out;
 }
 
-/* --- STATUS BADGE (Above Orb) --- */
-.status-badge {
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-1);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 4px 8px;
-    border-radius: 8px;
-    margin-left: 12px; /* Align slightly with Orb center visually */
-    pointer-events: auto;
-    transition: all 0.2s;
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- PAGINATION DOTS (Top) --- */
+.pagination-dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px; /* Space above carousel */
+    margin-top: 60px; /* Space for Top Message */
 }
 
-.status-badge.status-active {
-    color: #081018;
+.dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.dot.active {
     background: #5effb1;
-    box-shadow: 0 0 10px rgba(94, 255, 177, 0.4);
-    border: none;
+    transform: scale(1.3);
+    box-shadow: 0 0 8px rgba(94, 255, 177, 0.5);
 }
 
-/* --- VIEW CHAT BUTTON --- */
-.view-chat-btn {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 10px 16px;
+/* --- LARGE CAROUSEL --- */
+.shopping-carousel {
+    display: flex;
+    gap: 0; /* No gap, we rely on padding/snapping */
+    overflow-x: auto;
+    width: 90vw; /* Take up almost full width */
+    height: 65vh; /* Take up almost full height */
+    scroll-snap-type: x mandatory;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
     border-radius: 24px;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-    animation: fadeIn 0.3s ease;
+}
+.shopping-carousel::-webkit-scrollbar { display: none; }
+
+.shopping-card-wrapper {
+    min-width: 100%; /* Forces 1 card per view */
+    height: 100%;
+    padding: 0 8px; /* Slight padding between snaps */
+    scroll-snap-align: center;
+    box-sizing: border-box;
 }
 
-.view-chat-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
+.shopping-card {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 
-.avatar-widget.preview {
-  position: relative;
-  bottom: auto;
-  right: auto;
-  margin: 10px 0 0;
+.shopping-card:hover {
+    border-color: rgba(255,255,255,0.5);
 }
 
-/* --- GLASS BUBBLE --- */
-/* --- GLASS BUBBLE --- */
-.bubble {
-  /* Absolute position relative to the avatar-widget container */
-  position: absolute;
-  bottom: 100%; /* Push to top of container (above Orb) */
-  left:0;
-  right:auto;    /* Align right with Orb */
-  margin-bottom: 16px; /* Space between Orb and Bubble */
-  
-  background: rgba(15, 24, 34, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px);
-  
-  /* DEFAULT TO EXPANDED SIZE */
-  width: 360px;
-  max-width: 90vw;
-  height: 600px;
-  max-height: 80vh; 
-  
-  padding: 16px;
-  border-radius: 24px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-  color: var(--text-0);
-  pointer-events: auto;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  transform-origin: bottom right; /* Animate from connector */
-  overflow-y: hidden;
-  z-index: 10000;
+.shopping-card-img {
+    height: 75%; /* Image is the hero */
+    width: 100%;
+    object-fit: cover;
+    background: #000;
 }
 
-.avatar-widget.preview .bubble {
-  position: relative;
-  bottom: auto;
-  right: auto;
-  margin: 10px 0 0;
-  width: 100%;
-  height: 480px;
-  max-height: none;
+.shopping-card-info {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+    background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.4));
 }
 
-/* --- 2. TRANSIENT "FADE UI" (Closed Mode) --- */
-/* --- 2. TRANSIENT "FADE UI" (Closed Mode) --- */
-.transient-bubble {
-  /* Positioned relative to the flex row */
-  position: relative; 
-  bottom: auto;
-  left: auto;
-  margin-left: 0;
-  
-  width: max-content;
-  max-width: 60vw;
-  
-  background: rgba(5, 5, 5, 0.95); /* Nearly opaque black */
-  backdrop-filter: blur(12px);
-  padding: 14px 18px;
-  border-radius: 20px;
-  border-bottom-left-radius: 4px; /* Callout style */
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-  
-  color: #fff;
-  font-size: 15px; /* Larger text */
-  font-weight: 500; /* Bolder */
-  line-height: 1.4;
-  pointer-events: auto;
-  
-  /* Animation */
-  opacity: 0;
-  transform: translateX(-10px);
-  animation: fadeSlideIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+.shopping-card-title {
+    font-size: 20px; /* Big Title */
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
 }
 
-.transient-bubble.fading-out {
-  animation: fadeSlideOut 0.3s ease forwards;
+.shopping-card-price {
+    font-size: 18px;
+    color: #5effb1;
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
-@keyframes fadeSlideIn {
-  to { opacity: 1; transform: translateX(0); }
+.shopping-cta {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 500;
 }
-
-@keyframes fadeSlideOut {
-  to { opacity: 0; transform: translateY(-10px); }
-}
-
-/* --- PRODUCT CARDS --- */
-/* ... (Keep existing Container, Bubble, Transient styles from previous turn) ... */
-
-/* --- PRODUCT CAROUSEL (Horizontal Scroll) --- */
-.products-carousel {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto; /* Enable horizontal scroll */
-  padding: 8px 4px 12px 4px; /* Bottom padding for scrollbar space */
-  margin-top: 12px;
-  width: 100%;
-  
-  /* Hide Scrollbar for clean look (optional, but good for mobile) */
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-.products-carousel::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
-/* --- PRODUCT CARD --- */
-.product-card-link {
-  text-decoration: none;
-  color: inherit;
-  flex-shrink: 0; /* Prevent cards from squishing */
-}
-
-.product-card {
-  width: 140px; /* Fixed width for carousel items */
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: transform 0.2s ease, background 0.2s;
-  display: flex;
-  flex-direction: column;
-}
-
-.product-card:active {
-  transform: scale(0.96);
-}
-
-.card-image-container {
-  width: 100%;
-  height: 100px; /* Fixed height for image area */
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.product-thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* Ensures image fills the box nicely */
-  opacity: 0.9;
-}
-
-.product-info {
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.product-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; /* Truncate long names */
-}
-
-.product-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.product-price {
-  font-size: 11px;
-  color: #5effb1; /* Greenish for money/price */
-  font-weight: 600;
-}
-
-.shop-icon {
-  font-size: 14px;
-  color: rgba(255,255,255,0.4);
-}
-/* ... headers/content ... */
-
-/* REMOVED: .avatar-widget.mode-expanded .bubble - merged into default .bubble */
-
-/* Note: Since we render {isOpen && ...}, the bubble is simply added/removed from DOM 
-   or we can use CSS transition if we kept it in DOM. 
-   React removal is cleaner for logic but no exit animation without logic. 
-   User asked for simple Open/Close. 
-*/
-
-.mode-expanded .bubble::-webkit-scrollbar {
-  width: 6px;
-}
-.mode-expanded .bubble::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-/* ... existing styles ... */
-
-/* --- ORB AVATAR --- */
-/* --- BUBBLE HEADER --- */
-.bubble-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.bubble-status {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-1);
-}
-
-.bubble-status.listening { color: #5effb1; background: rgba(94, 255, 177, 0.1); }
-.bubble-status.transcribing { color: #ffd700; background: rgba(255, 215, 0, 0.1); } /* Gold */
-.bubble-status.thinking { color: #61dafb; background: rgba(97, 218, 251, 0.1); }
-.bubble-status.generating_audio { color: #bd93f9; background: rgba(189, 147, 249, 0.1); } /* Purple */
-.bubble-status.speaking { color: #ff79c6; background: rgba(255, 121, 198, 0.1); }
 
 /* --- CLOSE BUTTON --- */
-.expand-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-1);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-}
-
-.expand-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.expand-btn:active {
-  transform: translateY(0);
-}
-
-
-/* --- ORB AVATAR --- */
-.orb-avatar {
-  width: 84px;
-  height: 84px;
-  position: relative;
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.5));
-  transition: transform 0.2s ease;
-  flex-shrink: 0; /* Prevent shrinking in flex container */
-  order: 2;
-}
-
-
-.orb-avatar:hover {
-  transform: translateY(-2px);
-}
-
-.orb-core {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #c7f4ff, #46c2ff 45%, #0b2a3a 70%);
-  box-shadow: 0 0 30px rgba(70, 194, 255, 0.45);
-  position: relative;
-  z-index: 2;
-}
-
-.orb-ring {
-  position: absolute;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 1px solid rgba(109, 224, 255, 0.5);
-  box-shadow: 0 0 25px rgba(109, 224, 255, 0.35);
-  z-index: 1;
-}
-
-/* STATE ANIMATIONS */
-
-/* IDLE: Gentle breathing */
-.orb-avatar.IDLE .orb-core {
-  animation: breathe 4s ease-in-out infinite;
-}
-
-/* LISTENING: Fast Pulse (Heartbeat) */
-.orb-avatar.LISTENING .orb-core {
-  animation: pulseFast 1.2s ease-in-out infinite;
-  box-shadow: 0 0 40px rgba(94, 255, 177, 0.6); /* Greenish glow */
-}
-
-/* TRANSCRIBING: Rapid Spin of Ring */
-.orb-avatar.TRANSCRIBING .orb-ring {
-    border-color: rgba(255, 215, 0, 0.8); /* Gold */
-    border-top-color: transparent; /* Create gap for spin effect */
-    animation: spin 0.8s linear infinite;
-}
-.orb-avatar.TRANSCRIBING .orb-core {
-    filter: hue-rotate(45deg); /* Slight color shift */
-}
-
-/* THINKING: Nebula Effect (Fast rotation + Color Shift) */
-.orb-avatar.THINKING .orb-core {
-   animation: nebulaSpin 2s linear infinite;
-   background: conic-gradient(from 0deg, #46c2ff, #bd93f9, #ff79c6, #46c2ff);
-   box-shadow: 0 0 50px rgba(189, 147, 249, 0.6);
-   filter: blur(4px); /* Soften the gradient edges */
-}
-/* Restore ring visibility on top */
-.orb-avatar.THINKING .orb-ring {
-    border-color: rgba(255, 255, 255, 0.3);
-    z-index: 3;
-}
-
-/* GENERATING AUDIO: Reverse Spin + Purple Glow */
-.orb-avatar.GENERATING_AUDIO .orb-ring {
-    border-color: rgba(189, 147, 249, 0.8); /* Purple */
-    border-left-color: transparent;
-    animation: spinReverse 1.5s linear infinite; 
-}
-.orb-avatar.GENERATING_AUDIO .orb-core {
-    background: radial-gradient(circle at 30% 30%, #e0c7ff, #bd93f9 45%, #2a0b3a 70%);
-}
-
-
-/* SPEAKING: Shockwave Ring */
-.orb-avatar.SPEAKING .orb-ring {
-  animation: speakWave 1.2s ease-out infinite;
-  border-color: #ff79c6;
-}
-.orb-avatar.SPEAKING .orb-core {
-     background: radial-gradient(circle at 30% 30%, #ffc7e0, #ff79c6 45%, #3a0b25 70%);
-}
-
-
-@keyframes breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes pulseFast {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-@keyframes spinReverse {
-    0% { transform: rotate(360deg); }
-    100% { transform: rotate(0deg); }
-}
-
-@keyframes speakWave {
-  0% { transform: scale(1); opacity: 0.8; border-width: 2px;}
-  100% { transform: scale(1.4); opacity: 0; border-width: 0px;}
-}
-
-
-@media (max-width: 600px) {
-  .avatar-widget {
-    right: 16px;
-    bottom: 16px;
-  }
-  .bubble {
-    width: 220px;
-  }
-  .avatar-widget.mode-expanded .bubble {
-    width: 90vw;
-    height: 60vh;
-    right: 5vw;
-  }
-}
-
-/* --- CHAT HISTORY --- */
-.chat-history {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  max-height: 100%;
-  padding-right: 4px; /* Space for scrollbar */
-  flex: 1; /* Take remaining space */
-}
-
-/* Scrollbar within chat history */
-.chat-history::-webkit-scrollbar {
-  width: 4px;
-}
-.chat-history::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-}
-
-.message-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  max-width: 90%;
-  font-size: 14px;
-  line-height: 1.5;
-  word-wrap: break-word; /* Ensure long words break */
-  white-space: pre-wrap; /* Preserve newlines from backend */
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* User Message */
-.user-message {
-  align-self: flex-end;
-  background: rgba(70, 194, 255, 0.15);
-  color: #e9f0f6;
-  border: 1px solid rgba(70, 194, 255, 0.2);
-  border-bottom-right-radius: 2px;
-}
-
-/* Assistant Message */
-.assistant-message {
-  align-self: flex-start;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-0);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom-left-radius: 2px;
-}
-
-/* Transient States (Thinking/Listening) in chat */
-.status-message {
-    align-self: flex-start;
-    color: var(--text-1);
-    font-size: 13px;
-    font-style: italic;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.typing-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--text-1);
-    border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out both;
-}
-
-.typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-
-@keyframes nebulaSpin {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.1); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-
-
-/* --- TRANSIENT CAROUSEL (Centered) --- */
-/* --- TRANSIENT CAROUSEL (Centered Above Orb) --- */
-.transient-carousel-container {
-    position: fixed;
-    bottom: 140px; /* Anchored above the orb controls */
-    left: 50%;
-    transform: translateX(-50%); /* Horizontally centered */
-    width: 90vw;
-    max-width: 400px;
-    background: rgba(15, 24, 34, 0.9);
-    backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
-    padding: 24px 16px;
-    z-index: 10001; 
-    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-    animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-@keyframes popUp {
-    from { opacity: 0; transform: translate(-50%, 20px) scale(0.9); }
-    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
-
-.transient-carousel-container .products-carousel {
-    justify-content: flex-start; /* Scrolling behavior */
-    margin-top: 12px;
-}
-
-/* Ensure cards in transient view look good */
-.transient-carousel-container .product-card {
-    width: 160px; /* Slightly larger in focused view */
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.close-carousel-btn {
+.close-shopping-btn {
     position: absolute;
-    top: -12px;
-    right: -12px;
-    width: 32px;
-    height: 32px;
+    top: 20px; right: 20px;
+    width: 40px; height: 40px;
     border-radius: 50%;
-    background: #fff;
-    color: #000;
-    border: none;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    z-index: 2;
+    background: rgba(255,255,255,0.1);
+    border: none; color: #fff;
+    font-size: 24px; cursor: pointer;
+    z-index: 100;
 }
 
+/* --- FADE MESSAGE (Dynamic Position) --- */
+/* Default (Bottom near Orb) */
+.transient-bubble {
+    position: relative;
+    background: rgba(5, 5, 5, 0.9);
+    padding: 10px 16px;
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    pointer-events: auto;
+    opacity: 0;
+    animation: fadeSlideIn 0.3s forwards;
+    max-width: 240px;
+}
+
+/* Shopping Mode Variant (Top Center) */
+.transient-bubble.shopping-mode-msg {
+    position: absolute;
+    top: 8%; /* Above the dots */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    width: max-content;
+    max-width: 90vw;
+    z-index: 10000;
+    font-size: 15px;
+    text-align: center;
+}
+
+.transient-bubble.fading-out { animation: fadeOut 0.3s forwards; }
+
+@keyframes fadeSlideIn { to { opacity: 1; transform: translateX(0); } }
+@keyframes fadeOut { to { opacity: 0; } }
+
+/* --- ORB DOCK (Bottom Center) --- */
+.avatar-controls {
+    display: flex;
+    flex-direction: column; /* Stack message above dock */
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    gap: 12px;
+    pointer-events: none; /* Allow clicks through gaps */
+}
+
+.orb-dock {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 20px;
+    border-radius: 50px;
+    gap: 16px;
+    pointer-events: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    min-width: 280px;
+}
+
+/* 1. STATUS (Left) */
+.dock-status {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    width: 60px; /* Fixed width for balance */
+    text-align: left;
+}
+
+/* 2. ORB (Center) */
+.orb-avatar { 
+    width: 64px; 
+    height: 64px; 
+    position: relative; 
+    cursor: pointer; 
+    flex-shrink: 0;
+    margin-top: -30px; /* Pop out effect */
+}
+
+.orb-core { 
+    width: 100%; 
+    height: 100%; 
+    background: radial-gradient(circle at 30% 30%, #c7f4ff, #46c2ff 45%, #0b2a3a 70%); 
+    border-radius: 50%; 
+    box-shadow: 0 4px 20px rgba(70, 194, 255, 0.4); 
+    transition: transform 0.3s ease;
+}
+
+.orb-avatar:hover .orb-core {
+    transform: scale(1.05);
+}
+
+/* Speaking State specific tweaks if needed */
+.orb-avatar.SPEAKING .orb-core {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(70, 194, 255, 0.7); }
+    70% { box-shadow: 0 0 0 20px rgba(70, 194, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(70, 194, 255, 0); }
+}
+
+/* 3. ACTION / VIEW CHAT (Right) */
+.dock-action {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    width: 60px; /* Fixed width for balance */
+    text-align: right;
+    white-space: nowrap;
+    opacity: 0.9;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.dock-action:hover {
+    opacity: 1;
+}
