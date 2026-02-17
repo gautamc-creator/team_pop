@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import useVoiceRecorder from './VoiceRecorder';
 import { api } from '../services/api';
 import '../styles/AvatarWidget.css';
 
-const DUMMY_IMAGE = "https://placehold.co/400x400/1a1a1a/white?text=No+Image"; 
+const DUMMY_IMAGE = "/image.png"; 
 
-// --- SHOPPING CARD COMPONENT ---
+// --- SHOPPING CARD (Style A) ---
 const ShoppingCard = ({ product }) => (
     <a href={product.product_url} target="_blank" rel="noopener noreferrer" className="shopping-card">
         <img 
@@ -17,7 +17,7 @@ const ShoppingCard = ({ product }) => (
         <div className="shopping-card-info">
             <div className="shopping-card-title">{product.name}</div>
             <div className="shopping-card-price">{product.price || "Check Price"}</div>
-            <div className="shopping-cta">View Details &rarr;</div>
+            <div className="shopping-cta">Shop Now</div>
         </div>
     </a>
 );
@@ -27,14 +27,11 @@ export default function AvatarWidget({ domain, preview = false }) {
     const [isOpen, setIsOpen] = useState(preview); 
     const [latestProducts, setLatestProducts] = useState([]); 
     
-    // Carousel State
     const [activeIndex, setActiveIndex] = useState(0);
     const carouselRef = useRef(null);
 
-    // History
     const [messages, setMessages] = useState([{ role: 'assistant', content: 'Hi! Tap me to speak.' }]);
 
-    // Transient Message
     const [transientMessage, setTransientMessage] = useState(null);
     const [isFadingOut, setIsFadingOut] = useState(false);
     const transientTimeoutRef = useRef(null);
@@ -42,18 +39,16 @@ export default function AvatarWidget({ domain, preview = false }) {
     const audioPlayerRef = useRef(new Audio());
     const chatContainerRef = useRef(null);
 
-    // --- CAROUSEL SCROLL HANDLER (Option A: Visual Tracking) ---
+    // Scroll Handler
     const handleCarouselScroll = () => {
         if (carouselRef.current) {
             const scrollLeft = carouselRef.current.scrollLeft;
             const width = carouselRef.current.clientWidth;
-            // Calculate index based on scroll position
             const newIndex = Math.round(scrollLeft / width);
             setActiveIndex(newIndex);
         }
     };
 
-    // Helper: Show Message
     const showTransientMessage = (text) => {
         if (isOpen) return; 
         if (transientTimeoutRef.current) clearTimeout(transientTimeoutRef.current);
@@ -64,7 +59,7 @@ export default function AvatarWidget({ domain, preview = false }) {
         transientTimeoutRef.current = setTimeout(() => {
             setIsFadingOut(true); 
             setTimeout(() => setTransientMessage(null), 300);
-        }, 5000);
+        }, 8000);
     };
 
     const handleInteraction = () => {
@@ -76,7 +71,8 @@ export default function AvatarWidget({ domain, preview = false }) {
             stopRecording();
         } else {
             audioPlayerRef.current.pause();
-            showTransientMessage("Listening...");
+            // showTransientMessage("Listening..."); // REMOVED per user request
+            setVisualState('LISTENING');
             startRecording();
         }
     };
@@ -84,7 +80,8 @@ export default function AvatarWidget({ domain, preview = false }) {
     const handleTranscript = async (text) => {
         if (!text) return;
         setVisualState('THINKING');
-        showTransientMessage("Thinking...");
+        // Show user's transcribed text instead of "Thinking..."
+        showTransientMessage(text);
 
         const newHistory = [...messages, { role: 'user', content: text }];
         setMessages(newHistory);
@@ -97,7 +94,7 @@ export default function AvatarWidget({ domain, preview = false }) {
 
             if (products.length > 0) {
                 setLatestProducts(products);
-                setActiveIndex(0); // Reset to first card on new search
+                setActiveIndex(0);
             }
 
             setMessages(prev => [...prev, { role: 'assistant', content: answerText, products: products }]);
@@ -129,31 +126,40 @@ export default function AvatarWidget({ domain, preview = false }) {
     };
 
     const { isRecording, startRecording, stopRecording } = useVoiceRecorder({ onTranscript: handleTranscript });
-
     const isShoppingMode = !isOpen && latestProducts.length > 0;
+
+    // --- MARKDOWN FORMATTER ---
+    const formatMessage = (text) => {
+        if (!text) return "";
+        let formatted = text
+            // Bold: **text** -> <strong>text</strong>
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Italic: *text* -> <em>text</em>
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            // Line breaks: \n -> <br>
+            .replace(/\n/g, '<br />');
+
+        // Numbered Lists: 1. Item -> <br>1. Item (basic handling)
+        // A full parser would be better, but for now simplistic:
+        formatted = formatted.replace(/(\d+\.)\s/g, '<br/>$1 ');
+
+        return formatted;
+    };
 
     return (
         <>
-            {/* 1. SHOPPING MODE OVERLAY (Full Screen) */}
+            {/* 1. SHOPPING MODE OVERLAY */}
             {isShoppingMode && (
                 <div className="shopping-mode-overlay">
                     <button className="close-shopping-btn" onClick={() => setLatestProducts([])}>&times;</button>
                     
-                    {/* PAGINATION DOTS (Visual Only) */}
                     <div className="pagination-dots">
                         {latestProducts.map((_, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`dot ${idx === activeIndex ? 'active' : ''}`}
-                            ></div>
+                            <div key={idx} className={`dot ${idx === activeIndex ? 'active' : ''}`}></div>
                         ))}
                     </div>
 
-                    <div 
-                        className="shopping-carousel" 
-                        ref={carouselRef}
-                        onScroll={handleCarouselScroll}
-                    >
+                    <div className="shopping-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
                         {latestProducts.map((p, idx) => (
                             <div key={idx} className="shopping-card-wrapper">
                                 <ShoppingCard product={p} />
@@ -163,49 +169,54 @@ export default function AvatarWidget({ domain, preview = false }) {
                 </div>
             )}
 
-            {/* 2. MAIN WIDGET UI */}
+            {/* 2. MAIN WIDGET CONTAINER */}
             <div className={`avatar-widget ${isOpen ? 'mode-open' : 'mode-closed'}`}>
-                <div className="avatar-controls">
-                    {/* TRANSIENT MESSAGE (Appears above dock) */}
+                
+                {/* Always visible Dock Column */}
+                <div className="avatar-controls-column">
+                    
+                    {/* A. TRANSIENT MESSAGE (Floating Bubble) */}
                     {!isOpen && transientMessage && (
-                        <div className={`transient-bubble ${isShoppingMode ? 'shopping-mode-msg' : ''} ${isFadingOut ? 'fading-out' : ''}`}>
-                            {transientMessage}
+                        <div className={`transient-bubble ${isFadingOut ? 'fading-out' : ''}`}>
+                            <span dangerouslySetInnerHTML={{ __html: formatMessage(transientMessage) }} />
                         </div>
                     )}
 
-                    {/* ORB DOCK */}
-                    <div className="orb-dock">
-                        {/* 1. STATUS (Left) */}
-                        <div className="dock-status">
-                            {visualState === 'IDLE' ? 'READY' : visualState}
-                        </div>
+                    {/* B. THE FLOATING CAPSULE DOCK */}
+                    {!isOpen && (
+                        <div className="orb-dock">
+                            {/* Left: Status */}
+                            <div className={`dock-status ${visualState !== 'IDLE' ? 'active' : ''}`}>
+                                {visualState === 'IDLE' ? 'Ready' : 
+                                 visualState === 'GENERATING_AUDIO' ? 'Preparing' : 
+                                 visualState}
+                            </div>
 
-                        {/* 2. ORB (Center) */}
-                        <div className={`orb-avatar ${visualState}`} onClick={handleInteraction}>
-                            <div className="orb-core"></div>
-                        </div>
+                            {/* Center: Pop-out Orb */}
+                            <div className={`orb-wrapper ${visualState}`} onClick={handleInteraction}>
+                                <div className="orb-core"></div>
+                            </div>
 
-                        {/* 3. ACTION (Right) */}
-                        {isOpen ? (
-                            <button className="dock-action" onClick={() => setIsOpen(false)}>Close</button>
-                        ) : (
-                            <button className="dock-action" onClick={() => setIsOpen(true)}>View Chat</button>
-                        )}
-                    </div>
+                            {/* Right: View Chat */}
+                            <button className="dock-action" onClick={() => setIsOpen(true)}>
+                                View Chat
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
-            
-             {/* 3. FULL CHAT UI */}
-             {isOpen && (
-               <div className="bubble">
+
+            {/* 3. FULL CHAT UI (Open State) */}
+            {isOpen && (
+               <div className="bubble"> {/* Use existing bubble class but ensure full screen styling in CSS if needed */}
                    <div className="bubble-header">
-                       <span className="bubble-status">Conversation</span>
-                       <button className="expand-btn" onClick={() => setIsOpen(false)}>Close</button>
+                       <span className="bubble-status">History</span>
+                       <button className="expand-btn" onClick={() => setIsOpen(false)}>&times;</button>
                    </div>
                    <div className="bubble-content chat-history" ref={chatContainerRef}>
                        {messages.map((msg, idx) => (
                            <div key={idx} className={`message-bubble ${msg.role === 'user' ? 'user-message' : 'assistant-message'}`}>
-                               <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                               <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
                            </div>
                        ))}
                    </div>
