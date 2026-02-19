@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 from elasticsearch import AsyncElasticsearch, ApiError
 
@@ -9,7 +10,13 @@ from livekit import agents, rtc
 from livekit.agents import JobContext, WorkerOptions, cli, function_tool, RunContext
 from livekit.plugins import google
 
-load_dotenv()
+# Load .env from this project's backend directory, regardless of cwd
+_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=_ENV_PATH)
+
+# livekit-plugins-google reads GOOGLE_API_KEY; our .env stores it as GEMINI_API_KEY
+if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
 # Initialize Elastic Cloud Client
 es_client = AsyncElasticsearch(
@@ -89,8 +96,8 @@ class ECommerceAgent(agents.Agent):
 
         # Send the visual data to the frontend (Data Channel)
         payload = json.dumps({
-            "type": "product_results", 
-            "data": frontend_results
+            "type": "product_results",
+            "products": frontend_results
         }).encode("utf-8")
         await self.room.local_participant.publish_data(payload=payload)
         
