@@ -81,9 +81,7 @@ export default function GetStarted() {
 
                 // Auto-advance if completed
                 if (statusData.status === 'completed') {
-                    setCompletedSteps(prev => ({ ...prev, 1: true }));
-                    // Optional: Auto-advance after a brief delay
-                    // setTimeout(() => setActiveStep(2), 1000); 
+                    setCompletedSteps(prev => ({ ...prev, 1: true })); 
                 }
 
             } catch (e) {

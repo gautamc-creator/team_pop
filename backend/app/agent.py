@@ -1,8 +1,9 @@
 import os
 import json
 import asyncio
+import logging
 from dotenv import load_dotenv
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, ApiError
 
 from livekit import agents, rtc
 from livekit.agents import JobContext, WorkerOptions, cli, function_tool, RunContext
@@ -12,7 +13,7 @@ load_dotenv()
 
 # Initialize Elastic Cloud Client
 es_client = AsyncElasticsearch(
-    cloud_id=os.environ.get("ELASTIC_URL"),
+    hosts=[os.environ.get("ELASTIC_URL")],
     api_key=os.environ.get("ELASTIC_API_KEY"),
 )
 
@@ -27,23 +28,74 @@ class ECommerceAgent(agents.Agent):
 
     @function_tool
     async def search_products(self, context: RunContext, query: str):
-        """Used to search the product catalog when the user asks for items."""
+        """
+        Searches the sensesindia-v2 index. 
+        Uses semantic search on both title and description for maximum accuracy.
+        """
         print(f"Gemini triggered product search for: {query}")
         
-        # 1. We will put the Elastic 9.x semantic_text query here in the next step
-        # For now, we mock the response using the client's CDN links as planned
-        mock_results = [
-            {"id": "1", "name": "Red Running Shoes", "price": "₹2999", "image": "https://client-cdn.com/red-shoes.jpg"}
-        ]
+        index_name = "sensesindia-v2"
         
-        # 2. FIRE THE DATA CHANNEL EVENT: 
-        # This reaches the React frontend instantly, allowing your UI to 
-        # expand the horizontal panel and render the product card before Gemini speaks.
-        payload = json.dumps({"type": "product_results", "data": mock_results}).encode("utf-8")
+        try:
+            # We use a bool/should query so we can match semantically against 
+            # BOTH the title and the detailed description.
+            response = await es_client.search(
+                index=index_name,
+                size=3,
+                query={
+                    "bool": {
+                        "should": [
+                            {"semantic": {"field": "product_title", "query": query}},
+                            {"semantic": {"field": "product_description", "query": query}}
+                        ],
+                        "minimum_should_match": 1
+                    }
+                },
+                # Pull everything needed for the UI AND for Gemini's brain
+                _source=["product_title", "product_price", "main_image", "url", "product_description", "body"]
+            )
+
+            frontend_results = []
+            gemini_context = []
+
+            hits = response.get('hits', {}).get('hits', [])
+            for hit in hits:
+                source = hit['_source']
+                
+                # 1. Prepare data for the Frontend Data Channel
+                frontend_results.append({
+                    "id": hit['_id'],
+                    "title": source.get("product_title"),
+                    "price": source.get("product_price"),
+                    "image": source.get("main_image"),
+                    "url": source.get("url")
+                })
+                
+                # 2. Prepare data for Gemini to talk about
+                # We include the 'body' and 'description' so Gemini can answer specific questions
+                gemini_context.append({
+                    "title": source.get("product_title"),
+                    "price": source.get("product_price"),
+                    "description": source.get("product_description"),
+                    "full_details": source.get("body")
+                })
+
+            if not frontend_results:
+                return "I couldn't find any products matching that. Could you try describing it differently?"
+
+        except ApiError as e:
+            logging.error(f"Elasticsearch error: {e}")
+            return "I'm having trouble checking the catalog. Please try again in a moment."
+
+        # Send the visual data to the frontend (Data Channel)
+        payload = json.dumps({
+            "type": "product_results", 
+            "data": frontend_results
+        }).encode("utf-8")
         await self.room.local_participant.publish_data(payload=payload)
         
-        # 3. Return the text context to Gemini so it can generate the voice response
-        return f"Found {len(mock_results)} products. Top match: {mock_results[0]['name']} for {mock_results[0]['price']}."
+        # Return the full detailed text to Gemini so it can describe the products
+        return json.dumps(gemini_context)
 
 async def entrypoint(ctx: JobContext):
     # Connect to the LiveKit WebRTC Room

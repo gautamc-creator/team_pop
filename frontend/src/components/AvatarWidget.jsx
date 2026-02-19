@@ -71,7 +71,6 @@ export default function AvatarWidget({ domain, preview = false }) {
             stopRecording();
         } else {
             audioPlayerRef.current.pause();
-            // showTransientMessage("Listening..."); // REMOVED per user request
             setVisualState('LISTENING');
             startRecording();
         }
@@ -122,7 +121,7 @@ export default function AvatarWidget({ domain, preview = false }) {
                 setVisualState('IDLE');
                 URL.revokeObjectURL(audioUrl);
             };
-        } catch (e) { setVisualState('IDLE'); console.log(e); }
+        } catch (e) { setVisualState('IDLE'); console.error(e); }
     };
 
     const { isRecording, startRecording, stopRecording } = useVoiceRecorder({ onTranscript: handleTranscript });
