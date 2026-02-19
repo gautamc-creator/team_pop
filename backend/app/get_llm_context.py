@@ -6,7 +6,7 @@ from app.elastic import es
 
 
 
-def get_llm_context(user_query, index_name="search-index-final-sense"):
+def get_llm_context(user_query, index_name="sensesindia-v2"):
     """
     Performs Hybrid Search using RRF and returns formatted context + sources.
     """

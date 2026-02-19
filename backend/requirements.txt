@@ -6,7 +6,8 @@ google-genai
 assemblyai
 requests
 langfuse
-# --- Add these new lines ---
 docker
 pyyaml
 elevenlabs
+livekit-agents
+livekit-plugins-google

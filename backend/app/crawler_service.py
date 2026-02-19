@@ -6,13 +6,17 @@ import shutil
 from app.elastic import generate_index_name , create_client_index
 from langfuse import observe
 from dotenv import load_dotenv
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 try:
     docker_client = docker.from_env()
 except Exception as e:
-    print(f"Docker not detected : {e}")
+    logger.error(f"Docker not detected : {e}")
     docker_client = None
 
 # In-memory crawl status for local demo
@@ -35,14 +39,14 @@ def get_crawl_status(url: str):
 @observe(name="docker-crawler-execution")
 def run_elastic_crawler(target_url : str):
     if not docker_client:
-        print("Skipping crawl : Docker unavailable")
+        logger.error("Skipping crawl : Docker unavailable")
         set_crawl_status(target_url, "failed", error="Docker unavailable on host")
         return
     
 
     
     formatted_url = normailizeUrl(target_url)
-    print(formatted_url)
+    logger.info(f"Normalized URL: {formatted_url}")
     
     # index creation
     index_name = generate_index_name(formatted_url)
@@ -78,7 +82,7 @@ def run_elastic_crawler(target_url : str):
     with open(config_path, 'w') as f:
         yaml.dump(config_data, f)
 
-    print(f"Starting Crawler for {formatted_url} (ID: {crawl_id})")
+    logger.info(f"Starting Crawler for {formatted_url} (ID: {crawl_id})")
     
     
     # Run the elastic crawler container 
@@ -86,7 +90,7 @@ def run_elastic_crawler(target_url : str):
         container = docker_client.containers.run(
             image="docker.elastic.co/integrations/crawler:latest",
             # The crawler requires the config file to be passed as an argument
-            # FORCE bash to execute the string as a commnad 
+            # FORCE bash to execute the string as a command 
             entrypoint="/bin/bash",
             command=["-c", "bin/crawler crawl /crawler.yml"],
             volumes={
@@ -98,22 +102,22 @@ def run_elastic_crawler(target_url : str):
             # Use 'host' network if Elastic is on localhost, otherwise 'bridge' is fine
             network_mode="host" if "localhost" in os.getenv("ELASTIC_URL") or "127.0.0.1" in os.getenv("ELASTIC_URL") else "bridge"
         )
-        print(f"Container started: {container.id[:10]}.Waiting for logs")
+        logger.info(f"Container started: {container.id[:10]}. Waiting for logs")
         
         # To capture the logs
         result = container.wait()
         logs = container.logs().decode('utf-8')
         
-        print("\n" + "="*20 + " CRAWLER LOGS " + "="*20)
-        print(logs)
-        print("="*54 + "\n")
+        logger.info("\n" + "="*20 + " CRAWLER LOGS " + "="*20)
+        logger.info(logs)
+        logger.info("="*54 + "\n")
         
         # cleanup
         container.remove()
         shutil.rmtree(temp_dir, ignore_errors=True)
         
         if result['StatusCode'] != 0:
-            print(f"❌ Crawler exited with error code {result['StatusCode']}")
+            logger.error(f"❌ Crawler exited with error code {result['StatusCode']}")
             raise Exception(f"Crawler failed: {logs}")
 
         set_crawl_status(formatted_url, "completed", index=index_name)
@@ -122,7 +126,7 @@ def run_elastic_crawler(target_url : str):
         
 
     except Exception as e:
-        print(f"❌ Crawl failed: {e}")
+        logger.error(f"❌ Crawl failed: {e}")
         # Clean up temp dir if fail
         shutil.rmtree(temp_dir, ignore_errors=True)
         set_crawl_status(formatted_url, "failed", index=index_name, error=str(e))

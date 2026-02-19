@@ -1,4 +1,4 @@
-# from openai import OpenAI
+
 from fastapi import FastAPI,UploadFile,HTTPException,Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,13 +22,13 @@ import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-# from app.observability import setup_observability
+
 
 
 
 load_dotenv()
 
-# os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+
 ASSEMBLY_API_KEY = os.getenv("ASSEMBLY_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 VOICE_ID = os.getenv("VOICE_ID", "21m00Tcm4TlvDq8ikWAM") #Rachel
@@ -36,11 +36,11 @@ VOICE_ID = os.getenv("VOICE_ID", "21m00Tcm4TlvDq8ikWAM") #Rachel
 
 langfuse = get_client()
 
-# client = OpenAI()
+
 app = FastAPI()
 aai.settings.api_key = ASSEMBLY_API_KEY
 
-# setup_observability(app)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -126,7 +126,7 @@ async def speech_to_text(file: UploadFile):
 
         transcript = aai.Transcriber(config=config).transcribe(audio_buffer)
         
-        print(transcript)
+        logging.info(f"Transcript: {transcript.text}")
         
         if transcript.status == "error":
             raise RuntimeError(f"Transcription failed: {transcript.error}")
@@ -134,16 +134,7 @@ async def speech_to_text(file: UploadFile):
         
 
         # Call Whisper
-        # transcription = client.audio.transcriptions.create(
-        #     model="whisper-1",
-        #     file=audio_buffer,
-        #     response_format="text"  # returns plain string
-        # )
 
-        # return JSONResponse(
-        #     content={"text": transcription},
-        #     status_code=200
-        # )
         
         return JSONResponse(
             content={"text":transcript.text},
@@ -167,7 +158,7 @@ async def chat(req: ChatRequest):
         
         latest_query = req.messages[-1].content
         
-        target_index = "search-index-final-sense"
+        target_index = "sensesindia-v2"
         if req.domain:
             target_index = generate_index_name(req.domain)
             logging.info(f"🔍 Searching specific index: {target_index}")
@@ -340,7 +331,7 @@ async def text_to_speech(request: TTSRequest):
     response = requests.post(url, json=data, headers=headers)
     
     if response.status_code != 200:
-        print(f"❌ ElevenLabs Error: {response.text}") # Look at your terminal!
+        logging.error(f"❌ ElevenLabs Error: {response.text}") # Look at your terminal!
         return Response(content=response.content, status_code=500)
 
     # 4. Return Audio Bytes directly to frontend
@@ -349,4 +340,4 @@ async def text_to_speech(request: TTSRequest):
 
  
 # Flush events in short-lived applications
-# langfuse.flush()
+
