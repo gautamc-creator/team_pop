@@ -1,9 +1,16 @@
-import React, { useState, useRef } from 'react';
-import useVoiceRecorder from './VoiceRecorder';
-import { api } from '../services/api';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  LiveKitRoom,
+  useVoiceAssistant,
+  useRoomContext,
+  useLocalParticipant,
+} from '@livekit/components-react';
+import { RoomEvent } from 'livekit-client';
+import '@livekit/components-styles';
 import '../styles/AvatarWidget.css';
 
-const DUMMY_IMAGE = "/image.png"; 
+const DUMMY_IMAGE = "/image.png";
 
 // --- SHOPPING CARD (Style A) ---
 const ShoppingCard = ({ product }) => (
@@ -22,22 +29,175 @@ const ShoppingCard = ({ product }) => (
     </a>
 );
 
-export default function AvatarWidget({ domain, preview = false }) {
-    const [visualState, setVisualState] = useState('IDLE');
+// --- MARKDOWN FORMATTER ---
+const formatMessage = (text) => {
+    if (!text) return "";
+    let formatted = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br />');
+    formatted = formatted.replace(/(\d+\.)\s/g, '<br/>$1 ');
+    return formatted;
+};
+
+// --- INNER COMPONENT INSIDE LIVEKIT CONTEXT ---
+function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, activeIndex, setActiveIndex, carouselRef, handleCarouselScroll }) {
+  const { state } = useVoiceAssistant();
+  const room = useRoomContext();
+  const { localParticipant } = useLocalParticipant();
+  const [transientMessage, setTransientMessage] = useState(null);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+  const transientTimeoutRef = useRef(null);
+
+  // Map LiveKit agent state to UI visual state
+  // state can be: "listening" | "thinking" | "speaking" | "idle" (or undefined)
+  const visualState = state ? state.toUpperCase() : 'IDLE';
+
+  const showTransientMessage = useCallback((text) => {
+      if (isOpen) return; 
+      if (transientTimeoutRef.current) clearTimeout(transientTimeoutRef.current);
+      
+      setIsFadingOut(false);
+      setTransientMessage(text);
+      
+      transientTimeoutRef.current = setTimeout(() => {
+          setIsFadingOut(true); 
+          setTimeout(() => setTransientMessage(null), 300);
+      }, 5000);
+  }, [isOpen]);
+
+  // Data Channel Listener for products
+  useEffect(() => {
+    if (!room) return;
+
+    const handleData = (payload) => {
+      try {
+        const textDecoder = new TextDecoder();
+        const strData = textDecoder.decode(payload);
+        const json = JSON.parse(strData);
+
+        if (json.type === 'product_results' && json.products) {
+          setLatestProducts(json.products);
+          setActiveIndex(0);
+          showTransientMessage(`Found ${json.products.length} products for you.`);
+        }
+      } catch (error) {
+        console.error("Failed to parse data message", error);
+      }
+    };
+
+    room.on(RoomEvent.DataReceived, handleData);
+    return () => {
+      room.off(RoomEvent.DataReceived, handleData);
+    };
+  }, [room, setLatestProducts, setActiveIndex, showTransientMessage]);
+
+  // Handle interaction: toggle mic
+  const handleInteraction = async () => {
+    if (!localParticipant) return;
+    const isMicEnabled = localParticipant.isMicrophoneEnabled;
+    
+    if (!isMicEnabled) {
+      await localParticipant.setMicrophoneEnabled(true);
+    } else {
+      await localParticipant.setMicrophoneEnabled(false);
+    }
+  };
+
+  const isShoppingMode = !isOpen && latestProducts.length > 0;
+
+  return (
+    <>
+      {/* 1. SHOPPING MODE OVERLAY */}
+      {isShoppingMode && (
+          <div className="shopping-mode-overlay">
+              <button className="close-shopping-btn" onClick={() => setLatestProducts([])}>&times;</button>
+              
+              <div className="pagination-dots">
+                  {latestProducts.map((_, idx) => (
+                      <div key={idx} className={`dot ${idx === activeIndex ? 'active' : ''}`}></div>
+                  ))}
+              </div>
+
+              <div className="shopping-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
+                  {latestProducts.map((p, idx) => (
+                      <div key={idx} className="shopping-card-wrapper">
+                          <ShoppingCard product={p} />
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
+
+      {/* 2. MAIN WIDGET CONTAINER */}
+      <div className={`avatar-widget ${isOpen ? 'mode-open' : 'mode-closed'}`}>
+          
+          {/* Always visible Dock Column */}
+          <div className="avatar-controls-column">
+              
+              {/* A. TRANSIENT MESSAGE (Floating Bubble) */}
+              {!isOpen && transientMessage && (
+                  <div className={`transient-bubble ${isFadingOut ? 'fading-out' : ''}`}>
+                      <span dangerouslySetInnerHTML={{ __html: formatMessage(transientMessage) }} />
+                  </div>
+              )}
+
+              {/* B. THE FLOATING CAPSULE DOCK */}
+              {!isOpen && (
+                  <div className="orb-dock">
+                      {/* Left: Status */}
+                      <div className={`dock-status ${visualState !== 'IDLE' ? 'active' : ''}`}>
+                          {visualState === 'IDLE' ? 'Ready' : 
+                           visualState === 'THINKING' ? 'Thinking' :
+                           visualState === 'SPEAKING' ? 'Speaking' :
+                           visualState === 'LISTENING' ? 'Listening' :
+                           visualState}
+                      </div>
+
+                      {/* Center: Pop-out Orb */}
+                      <div className={`orb-wrapper ${visualState}`} onClick={handleInteraction}>
+                          <div className="orb-core">
+                            {/* Optional: Add Visualizer if speaking */}
+                            {visualState === 'SPEAKING' && (
+                                <div style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0.6 }}>
+                                    {/* Placeholder for visualizer or just keep CSS animation */}
+                                </div>
+                            )}
+                          </div>
+                      </div>
+
+                      {/* Right: View Chat */}
+                      <button className="dock-action" onClick={() => setIsOpen(true)}>
+                          View Chat
+                      </button>
+                  </div>
+              )}
+          </div>
+      </div>
+
+      {/* 3. FULL CHAT UI (Open State) - Reduced for now as chat history is not fully synced yet */}
+      {isOpen && (
+         <div className="bubble">
+             <div className="bubble-header">
+                 <span className="bubble-status">Live Session</span>
+                 <button className="expand-btn" onClick={() => setIsOpen(false)}>&times;</button>
+             </div>
+             <div className="bubble-content chat-history">
+                 <div className="message-bubble assistant-message">
+                    Chat history is unavailable in this mode. Please use voice.
+                 </div>
+             </div>
+         </div>
+      )}
+    </>
+  );
+}
+
+export default function AvatarWidget({ serverUrl, token, preview = false }) {
     const [isOpen, setIsOpen] = useState(preview); 
     const [latestProducts, setLatestProducts] = useState([]); 
-    
     const [activeIndex, setActiveIndex] = useState(0);
     const carouselRef = useRef(null);
-
-    const [messages, setMessages] = useState([{ role: 'assistant', content: 'Hi! Tap me to speak.' }]);
-
-    const [transientMessage, setTransientMessage] = useState(null);
-    const [isFadingOut, setIsFadingOut] = useState(false);
-    const transientTimeoutRef = useRef(null);
-    
-    const audioPlayerRef = useRef(new Audio());
-    const chatContainerRef = useRef(null);
 
     // Scroll Handler
     const handleCarouselScroll = () => {
@@ -49,178 +209,28 @@ export default function AvatarWidget({ domain, preview = false }) {
         }
     };
 
-    const showTransientMessage = (text) => {
-        if (isOpen) return; 
-        if (transientTimeoutRef.current) clearTimeout(transientTimeoutRef.current);
-        
-        setIsFadingOut(false);
-        setTransientMessage(text);
-        
-        transientTimeoutRef.current = setTimeout(() => {
-            setIsFadingOut(true); 
-            setTimeout(() => setTransientMessage(null), 300);
-        }, 8000);
-    };
-
-    const handleInteraction = () => {
-        if (visualState === 'SPEAKING') {
-            audioPlayerRef.current.pause();
-            setVisualState('IDLE');
-        }
-        if (isRecording) {
-            stopRecording();
-        } else {
-            audioPlayerRef.current.pause();
-            setVisualState('LISTENING');
-            startRecording();
-        }
-    };
-
-    const handleTranscript = async (text) => {
-        if (!text) return;
-        setVisualState('THINKING');
-        // Show user's transcribed text instead of "Thinking..."
-        showTransientMessage(text);
-
-        const newHistory = [...messages, { role: 'user', content: text }];
-        setMessages(newHistory);
-
-        try {
-            const data = await api.chat(newHistory, domain);
-            const answerText = data.answer || "I couldn't find an answer.";
-            const summaryText = data.summary || answerText; 
-            const products = data.products || [];
-
-            if (products.length > 0) {
-                setLatestProducts(products);
-                setActiveIndex(0);
-            }
-
-            setMessages(prev => [...prev, { role: 'assistant', content: answerText, products: products }]);
-            
-            showTransientMessage(summaryText);
-            setVisualState('GENERATING_AUDIO');
-            await playTTS(summaryText);
-
-        } catch (error) {
-            console.error(error);
-            showTransientMessage("Error connecting.");
-            setVisualState('IDLE');
-        }
-    };
-
-    const playTTS = async (text) => {
-        try {
-            const ttsResponse = await api.tts(text);
-            const audioBlob = await ttsResponse.blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-            audioPlayerRef.current.src = audioUrl;
-            await audioPlayerRef.current.play();
-            setVisualState('SPEAKING');
-            audioPlayerRef.current.onended = () => {
-                setVisualState('IDLE');
-                URL.revokeObjectURL(audioUrl);
-            };
-        } catch (e) { setVisualState('IDLE'); console.error(e); }
-    };
-
-    const { isRecording, startRecording, stopRecording } = useVoiceRecorder({ onTranscript: handleTranscript });
-    const isShoppingMode = !isOpen && latestProducts.length > 0;
-
-    // --- MARKDOWN FORMATTER ---
-    const formatMessage = (text) => {
-        if (!text) return "";
-        let formatted = text
-            // Bold: **text** -> <strong>text</strong>
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            // Italic: *text* -> <em>text</em>
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            // Line breaks: \n -> <br>
-            .replace(/\n/g, '<br />');
-
-        // Numbered Lists: 1. Item -> <br>1. Item (basic handling)
-        // A full parser would be better, but for now simplistic:
-        formatted = formatted.replace(/(\d+\.)\s/g, '<br/>$1 ');
-
-        return formatted;
-    };
+    if (!token || !serverUrl) {
+        return <div className="avatar-widget-error">Missing LiveKit Config</div>;
+    }
 
     return (
-        <>
-            {/* 1. SHOPPING MODE OVERLAY */}
-            {isShoppingMode && (
-                <div className="shopping-mode-overlay">
-                    <button className="close-shopping-btn" onClick={() => setLatestProducts([])}>&times;</button>
-                    
-                    <div className="pagination-dots">
-                        {latestProducts.map((_, idx) => (
-                            <div key={idx} className={`dot ${idx === activeIndex ? 'active' : ''}`}></div>
-                        ))}
-                    </div>
-
-                    <div className="shopping-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
-                        {latestProducts.map((p, idx) => (
-                            <div key={idx} className="shopping-card-wrapper">
-                                <ShoppingCard product={p} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* 2. MAIN WIDGET CONTAINER */}
-            <div className={`avatar-widget ${isOpen ? 'mode-open' : 'mode-closed'}`}>
-                
-                {/* Always visible Dock Column */}
-                <div className="avatar-controls-column">
-                    
-                    {/* A. TRANSIENT MESSAGE (Floating Bubble) */}
-                    {!isOpen && transientMessage && (
-                        <div className={`transient-bubble ${isFadingOut ? 'fading-out' : ''}`}>
-                            <span dangerouslySetInnerHTML={{ __html: formatMessage(transientMessage) }} />
-                        </div>
-                    )}
-
-                    {/* B. THE FLOATING CAPSULE DOCK */}
-                    {!isOpen && (
-                        <div className="orb-dock">
-                            {/* Left: Status */}
-                            <div className={`dock-status ${visualState !== 'IDLE' ? 'active' : ''}`}>
-                                {visualState === 'IDLE' ? 'Ready' : 
-                                 visualState === 'GENERATING_AUDIO' ? 'Preparing' : 
-                                 visualState}
-                            </div>
-
-                            {/* Center: Pop-out Orb */}
-                            <div className={`orb-wrapper ${visualState}`} onClick={handleInteraction}>
-                                <div className="orb-core"></div>
-                            </div>
-
-                            {/* Right: View Chat */}
-                            <button className="dock-action" onClick={() => setIsOpen(true)}>
-                                View Chat
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 3. FULL CHAT UI (Open State) */}
-            {isOpen && (
-               <div className="bubble"> {/* Use existing bubble class but ensure full screen styling in CSS if needed */}
-                   <div className="bubble-header">
-                       <span className="bubble-status">History</span>
-                       <button className="expand-btn" onClick={() => setIsOpen(false)}>&times;</button>
-                   </div>
-                   <div className="bubble-content chat-history" ref={chatContainerRef}>
-                       {messages.map((msg, idx) => (
-                           <div key={idx} className={`message-bubble ${msg.role === 'user' ? 'user-message' : 'assistant-message'}`}>
-                               <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
-                           </div>
-                       ))}
-                   </div>
-               </div>
-            )}
-        </>
+        <LiveKitRoom
+            serverUrl={serverUrl}
+            token={token}
+            connect={true}
+            audio={true} // Enable audio output
+            video={false}
+        >
+            <AvatarInner 
+                isOpen={isOpen} 
+                setIsOpen={setIsOpen}
+                latestProducts={latestProducts}
+                setLatestProducts={setLatestProducts}
+                activeIndex={activeIndex}
+                setActiveIndex={setActiveIndex}
+                carouselRef={carouselRef}
+                handleCarouselScroll={handleCarouselScroll}
+            />
+        </LiveKitRoom>
     );
 }
