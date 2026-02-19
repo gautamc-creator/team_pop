@@ -112,7 +112,7 @@ async def entrypoint(ctx: JobContext):
     agent_instance = ECommerceAgent(room=ctx.room)
     session = agents.AgentSession(
         llm=google.realtime.RealtimeModel(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-native-audio-preview-12-2025",
             voice="Puck", # Standard Gemini voice, you can configure this later
             temperature=0.7,
         ),
