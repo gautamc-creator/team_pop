@@ -105,25 +105,31 @@ class ECommerceAgent(agents.Agent):
         return json.dumps(gemini_context)
 
 async def entrypoint(ctx: JobContext):
+
     # Connect to the LiveKit WebRTC Room
     await ctx.connect()
+    print("User connected to room. Initializing Gemini Live API...")
     
     # Initialize the Multimodal Live API using Gemini 2.5 Flash
-    agent_instance = ECommerceAgent(room=ctx.room)
-    session = agents.AgentSession(
-        llm=google.realtime.RealtimeModel(
-            model="gemini-2.5-flash-native-audio-preview-12-2025",
-            voice="Puck", # Standard Gemini voice, you can configure this later
-            temperature=0.7,
-        ),
-    )
-    
-    # Start the session and join the agent to the room
-    await session.start(room=ctx.room, agent=agent_instance)
-    
-    # Optional: Greet the user as soon as the connection opens
-    await session.generate_reply(instructions="Greet the user warmly and ask what they are shopping for today.")
+    try : 
+        agent_instance = ECommerceAgent(room=ctx.room)
+        session = agents.AgentSession(
+            llm=google.realtime.RealtimeModel(
+                model="gemini-2.0-flash-exp",
+                voice="Puck", # Standard Gemini voice, you can configure this later
+                temperature=0.7,
+            ),
+        )
+        
+        # Start the session and join the agent to the room
+        await session.start(room=ctx.room, agent=agent_instance)
+        print("Gemini Agent successfully joined the room!")
 
+        # Optional: Greet the user as soon as the connection opens
+        await session.generate_reply(instructions="Greet the user warmly and ask what they are shopping for today.")
+    except Exception as e:
+        print(f"CRITICAL ERROR: Failed to start Gemini Agent: {e}")
+        
 if __name__ == "__main__":
     # This runs the worker process, listening for incoming WebRTC connections
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

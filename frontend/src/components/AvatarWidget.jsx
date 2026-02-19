@@ -5,6 +5,7 @@ import {
   useVoiceAssistant,
   useRoomContext,
   useLocalParticipant,
+  RoomAudioRenderer
 } from '@livekit/components-react';
 import { RoomEvent } from 'livekit-client';
 import '@livekit/components-styles';
@@ -231,6 +232,7 @@ export default function AvatarWidget({ serverUrl, token, preview = false }) {
                 carouselRef={carouselRef}
                 handleCarouselScroll={handleCarouselScroll}
             />
+            <RoomAudioRenderer />
         </LiveKitRoom>
     );
 }
