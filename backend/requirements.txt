@@ -2,12 +2,8 @@ fastapi
 uvicorn
 python-dotenv
 elasticsearch
-google-genai
-assemblyai
-requests
 langfuse
 docker
 pyyaml
-elevenlabs
 livekit-agents
 livekit-plugins-google
