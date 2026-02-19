@@ -1,19 +1,26 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js'
 
+// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    cssInjectedByJsPlugin(), // Merges CSS into the JS file
+    cssInjectedByJsPlugin({
+      injectCode: (cssCode) => {
+        return `window.__TEAM_POP_CSS__ = ${JSON.stringify(cssCode)};`
+      }
+    })
   ],
   build: {
-    rollupOptions: {
-      output: {
-        // Force a consistent filename (no random hashes)
-        entryFileNames: 'assets/voice-widget.js',
-        manualChunks: undefined, // Disable splitting
-      },
+    lib: {
+      entry: 'src/main.jsx',
+      name: 'TeamPopWidget',
+      fileName: () => 'widget.js',
+      formats: ['iife'],
     },
   },
-});
+  define: {
+    'process.env': {}
+  }
+})

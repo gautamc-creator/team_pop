@@ -1,50 +1,48 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import AvatarWidget from './components/AvatarWidget';
-import App from './App';
-import './index.css';
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
 
-const MOUNT_POINT_ID = 'voice-widget-mount-point';
 
-function mount() {
-  // 1. Try to find the script tag that has the configuration
-  const scriptTag = document.querySelector('script[data-domain]');
-  
-  // 2. Extract configuration
-  const domain = scriptTag?.getAttribute('data-domain');
-  
-  // 3. DECISION: Widget Mode vs. Dashboard Mode
-  if (domain) {
-    // === WIDGET MODE ===
-    console.log("Initializing Widget for domain:", domain);
+class TeamPopWidget extends HTMLElement {
+  connectedCallback() {
+    // 1. Attach Shadow DOM
+    const shadow = this.attachShadow({ mode: 'open' })
+
+    // 2. Create Container
+    const container = document.createElement('div')
+    container.id = 'team-pop-root'
+    container.style.fontSize = '16px' // Protect REM units
+
+    // 3. Inject CSS
+    const style = document.createElement('style')
+    let cssContent = window.__TEAM_POP_CSS__ || ''
     
-    // Create a new div at the end of the body so we don't overwrite the site's content
-    let widgetRoot = document.getElementById(MOUNT_POINT_ID);
-    if (!widgetRoot) {
-      widgetRoot = document.createElement('div');
-      widgetRoot.id = MOUNT_POINT_ID;
-      document.body.appendChild(widgetRoot);
+    // Formatting Fix: Remove potential double-encoding from build process
+    if (cssContent.startsWith('"') && cssContent.endsWith('"')) {
+        try {
+            cssContent = JSON.parse(cssContent);
+        } catch (e) {
+            console.error('[TeamPopWidget] Error parsing CSS string', e);
+            cssContent = cssContent.slice(1, -1).replace(/\\"/g, '"');
+        }
     }
     
-    ReactDOM.createRoot(widgetRoot).render(
+    style.textContent = cssContent
+    shadow.appendChild(style)
+
+    // 4. Mount React App
+    shadow.appendChild(container)
+    
+    ReactDOM.createRoot(container).render(
       <React.StrictMode>
-        {/* Pass the domain from the script tag to the widget */}
-        <AvatarWidget domain={domain} />
-      </React.StrictMode>
-    );
-    
-  } else {
-    // === DASHBOARD MODE ===
-    // This runs when you open localhost:5173 directly (no data-domain script found)
-    const rootElement = document.getElementById('root');
-    if (rootElement) {
-        ReactDOM.createRoot(rootElement).render(
-          <React.StrictMode>
-            <App />
-          </React.StrictMode>
-        );
-    }
+        <App />
+      </React.StrictMode>,
+    )
   }
 }
 
-mount();
+// Check if element is already defined to avoid errors during HMR or re-loads
+if (!customElements.get('team-pop-agent')) {
+  customElements.define('team-pop-agent', TeamPopWidget)
+}

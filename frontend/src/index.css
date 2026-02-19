@@ -1,10 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+@import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Space+Grotesk:wght@300;400;500;600;700&display=swap");
 
-:root {
+@layer base {
+  :host {
+    @apply font-sans antialiased text-gray-900;
+    line-height: 1.5;
+  }
+}
+
+
+:host, :root {
   --bg-0: #0a0f14;
   --bg-1: #0d1620;
   --bg-2: #0a1c24;
