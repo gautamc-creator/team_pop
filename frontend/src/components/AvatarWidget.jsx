@@ -14,8 +14,13 @@ import '../styles/AvatarWidget.css';
 const DUMMY_IMAGE = "/image.png";
 
 // --- SHOPPING CARD (Style A) ---
-const ShoppingCard = ({ product, isActive, highlightPrice }) => (
-    <a href={product.url} target="_blank" rel="noopener noreferrer" className={`shopping-card ${isActive ? 'transform scale-105 border-2 border-blue-500' : ''}`}>
+const ShoppingCard = ({ product, isActive, highlightPrice, highlightDesc }) => (
+    <a 
+        href={product.url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={`shopping-card ${isActive ? 'card-active' : 'card-dimmed'}`}
+    >
         <img 
             src={product.image || DUMMY_IMAGE} 
             alt={product.title} 
@@ -24,7 +29,14 @@ const ShoppingCard = ({ product, isActive, highlightPrice }) => (
         />
         <div className="shopping-card-info">
             <div className="shopping-card-title">{product.title}</div>
-            <div className={`shopping-card-price ${(isActive && highlightPrice) ? 'animate-pulse text-green-500 font-bold drop-shadow-md' : ''}`}>{product.price || "Check Price"}</div>
+            {product.description && (
+                <div className={`shopping-card-desc ${(isActive && highlightDesc) ? 'desc-highlight' : ''}`}>
+                    {product.description}
+                </div>
+            )}
+            <div className={`shopping-card-price ${(isActive && highlightPrice) ? 'price-glow' : ''}`}>
+                {product.price || "Check Price"}
+            </div>
             <div className="shopping-cta">Shop Now</div>
         </div>
     </a>
@@ -42,14 +54,17 @@ const formatMessage = (text) => {
 };
 
 // --- INNER COMPONENT INSIDE LIVEKIT CONTEXT ---
-function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, activeIndex, setActiveIndex, carouselRef, handleCarouselScroll }) {
+function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, activeIndex, setActiveIndex, carouselRef, handleCarouselScroll, isProgrammaticScrollRef }) {
   const { state } = useVoiceAssistant();
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const [transientMessage, setTransientMessage] = useState(null);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [highlightPrice, setHighlightPrice] = useState(false);
+  const [highlightDesc, setHighlightDesc] = useState(false);
   const transientTimeoutRef = useRef(null);
+  const priceTimerRef = useRef(null);
+  const descTimerRef = useRef(null);
 
   // Map LiveKit agent state to UI visual state
   // state can be: "listening" | "thinking" | "speaking" | "idle" (or undefined)
@@ -86,6 +101,8 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
           setLatestProducts(json.products);
           setActiveIndex(0);
           showTransientMessage(`Found ${json.products.length} products for you.`);
+          // Task 4: Haptic feedback to physically hook user attention
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         }
       } catch (error) {
         console.error("Failed to parse data message", error);
@@ -98,43 +115,79 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
     };
   }, [room, setLatestProducts, setActiveIndex, showTransientMessage]);
 
-  // Handle Transcription Events for Dynamic Presentation
+  // Handle Transcription Events for Dynamic Presentation ("The Director")
+  // KEY INSIGHT: LiveKit fires TranscriptionReceived with ALL segments (past + present).
+  // We must only look at the LAST segment and diff against previous text to detect NEW words.
+  const lastTranscriptRef = useRef('');
+
   useEffect(() => {
     if (!room) return;
 
     const handleTranscription = (segments, participant) => {
       // Only listen to the AI agent, not the local user
       if (participant.isLocal) return;
+      if (!segments || segments.length === 0) return;
 
-      const text = segments.map(s => s.text).join(' ').toLowerCase();
-      
-      // 1. Dynamic Scrolling based on ordinal keywords
-      if (text.includes('first') || text.includes('one')) setActiveIndex(0);
-      else if (text.includes('second') || text.includes('two')) setActiveIndex(1);
-      else if (text.includes('third') || text.includes('three')) setActiveIndex(2);
+      // Only examine the LAST segment — the one currently being spoken
+      const latestSegment = segments[segments.length - 1];
+      const fullText = latestSegment.text.toLowerCase();
 
-      // 2. Dynamic Price Highlighting
-      if (text.includes('price') || text.includes('₹') || text.includes('rupees') || text.includes('cost')) {
+      // Diff: extract only the NEW portion of text since last event
+      const prevText = lastTranscriptRef.current;
+      const newText = fullText.startsWith(prevText) 
+        ? fullText.slice(prevText.length) 
+        : fullText; // If segment changed entirely, process all of it
+      lastTranscriptRef.current = fullText;
+
+      // Reset tracking when a new segment starts (segment finalized, next one begins)
+      if (latestSegment.final) {
+        lastTranscriptRef.current = '';
+      }
+
+      if (!newText.trim()) return; // No new words, skip
+
+      // 1. Auto-Scrolling — only trigger on NEWLY spoken ordinal words
+      if (newText.includes('first') || /\bone\b/.test(newText)) setActiveIndex(0);
+      else if (newText.includes('second') || /\btwo\b/.test(newText)) setActiveIndex(1);
+      else if (newText.includes('third') || /\bthree\b/.test(newText)) setActiveIndex(2);
+
+      // 2. Price Highlighting — glow effect for 2500ms
+      if (newText.includes('price') || newText.includes('₹') || newText.includes('rupees') || newText.includes('cost')) {
+        if (priceTimerRef.current) clearTimeout(priceTimerRef.current);
         setHighlightPrice(true);
-        // Turn off highlight after 3 seconds
-        setTimeout(() => setHighlightPrice(false), 3000); 
+        priceTimerRef.current = setTimeout(() => setHighlightPrice(false), 2500);
+      }
+
+      // 3. Description Highlighting — soft highlight for 3500ms
+      if (newText.includes('details') || newText.includes('fabric') || newText.includes('description') || newText.includes('features')) {
+        if (descTimerRef.current) clearTimeout(descTimerRef.current);
+        setHighlightDesc(true);
+        descTimerRef.current = setTimeout(() => setHighlightDesc(false), 3500);
       }
     };
 
     room.on(RoomEvent.TranscriptionReceived, handleTranscription);
-    return () => room.off(RoomEvent.TranscriptionReceived, handleTranscription);
+    return () => {
+      room.off(RoomEvent.TranscriptionReceived, handleTranscription);
+      if (priceTimerRef.current) clearTimeout(priceTimerRef.current);
+      if (descTimerRef.current) clearTimeout(descTimerRef.current);
+      lastTranscriptRef.current = '';
+    };
   }, [room, setActiveIndex]);
 
   // Handle Programmatic Carousel Scrolling
   useEffect(() => {
       if (carouselRef.current && latestProducts.length > 0) {
+          isProgrammaticScrollRef.current = true;
           const width = carouselRef.current.clientWidth;
           carouselRef.current.scrollTo({
               left: activeIndex * width,
               behavior: 'smooth'
           });
+          // Keep the guard up for the duration of the smooth scroll animation
+          setTimeout(() => { isProgrammaticScrollRef.current = false; }, 600);
       }
-  }, [activeIndex, latestProducts, carouselRef]);
+  }, [activeIndex, latestProducts, carouselRef, isProgrammaticScrollRef]);
 
   // Handle interaction: toggle mic
   const handleInteraction = async () => {
@@ -169,7 +222,8 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
                           <ShoppingCard 
                               product={p} 
                               isActive={idx === activeIndex} 
-                              highlightPrice={highlightPrice} 
+                              highlightPrice={highlightPrice}
+                              highlightDesc={highlightDesc}
                           />
                       </div>
                   ))}
@@ -247,16 +301,22 @@ export default function AvatarWidget({ serverUrl, token, preview = false }) {
     const [latestProducts, setLatestProducts] = useState([]); 
     const [activeIndex, setActiveIndex] = useState(0);
     const carouselRef = useRef(null);
+    const isProgrammaticScrollRef = useRef(false);
+    const scrollEndTimerRef = useRef(null);
 
-    // Scroll Handler
-    const handleCarouselScroll = () => {
-        if (carouselRef.current) {
-            const scrollLeft = carouselRef.current.scrollLeft;
-            const width = carouselRef.current.clientWidth;
-            const newIndex = Math.round(scrollLeft / width);
-            setActiveIndex(newIndex);
-        }
-    };
+    // Debounced Scroll Handler — only responds to USER swipes, not programmatic scrolls
+    const handleCarouselScroll = useCallback(() => {
+        if (isProgrammaticScrollRef.current) return; // Guard: skip during programmatic scroll
+        if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
+        scrollEndTimerRef.current = setTimeout(() => {
+            if (carouselRef.current) {
+                const scrollLeft = carouselRef.current.scrollLeft;
+                const width = carouselRef.current.clientWidth;
+                const newIndex = Math.round(scrollLeft / width);
+                if (newIndex !== activeIndex) setActiveIndex(newIndex);
+            }
+        }, 150); // Wait 150ms after scroll stops to settle
+    }, [activeIndex]);
 
     if (!token || !serverUrl) {
         return <div className="avatar-widget-error">Missing LiveKit Config</div>;
@@ -279,6 +339,7 @@ export default function AvatarWidget({ serverUrl, token, preview = false }) {
                 setActiveIndex={setActiveIndex}
                 carouselRef={carouselRef}
                 handleCarouselScroll={handleCarouselScroll}
+                isProgrammaticScrollRef={isProgrammaticScrollRef}
             />
             <RoomAudioRenderer />
         </LiveKitRoom>

@@ -32,7 +32,8 @@ class ECommerceAgent(agents.Agent):
             instructions="""You are Team Pop, an expert fashion stylist and retail sales associate. 
             Your tone is warm, highly conversational, and human-like. 
             When presenting search results, introduce them one by one. Use specific phrases like 'The first option is...', 'For the second one...', or 'The third pair...'. 
-            Highlight key details naturally, explicitly mentioning the price and fabric as a real salesperson would. Keep responses snappy and under 3 sentences per product."""
+            Highlight key details naturally, explicitly mentioning the price and fabric as a real salesperson would. Keep responses snappy and under 3 sentences per product.
+            When describing a product, explicitly use the words 'price' or 'cost' when mentioning the price, and 'details' or 'features' when talking about the description, so our UI can sync with your speech."""
         )
 
     @function_tool
@@ -72,12 +73,14 @@ class ECommerceAgent(agents.Agent):
                 source = hit['_source']
                 
                 # 1. Prepare data for the Frontend Data Channel
+                desc = source.get("product_description", "")
                 frontend_results.append({
                     "id": hit['_id'],
                     "title": source.get("product_title"),
                     "price": source.get("product_price"),
                     "image": source.get("main_image"),
-                    "url": source.get("url")
+                    "url": source.get("url"),
+                    "description": (desc[:80] + "...") if len(desc) > 80 else desc,
                 })
                 
                 # 2. Prepare data for Gemini to talk about
