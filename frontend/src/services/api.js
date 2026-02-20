@@ -28,25 +28,5 @@ export const api = {
     );
     if (!response.ok) throw new Error("Failed to get count");
     return response.json();
-  },
-
-  chat: async (messages, domain) => {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, domain }),
-    });
-    if (!response.ok) throw new Error("Chat API failed");
-    return response.json();
-  },
-
-  tts: async (text) => {
-    const response = await fetch(`${API_BASE_URL}/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!response.ok) throw new Error("TTS Failed");
-    return response;
-  },
+  }
 };
