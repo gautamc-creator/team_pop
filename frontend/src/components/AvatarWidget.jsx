@@ -14,17 +14,17 @@ import '../styles/AvatarWidget.css';
 const DUMMY_IMAGE = "/image.png";
 
 // --- SHOPPING CARD (Style A) ---
-const ShoppingCard = ({ product }) => (
-    <a href={product.product_url} target="_blank" rel="noopener noreferrer" className="shopping-card">
+const ShoppingCard = ({ product, isActive, highlightPrice }) => (
+    <a href={product.url} target="_blank" rel="noopener noreferrer" className={`shopping-card ${isActive ? 'transform scale-105 border-2 border-blue-500' : ''}`}>
         <img 
-            src={product.image_url || DUMMY_IMAGE} 
-            alt={product.name} 
+            src={product.image || DUMMY_IMAGE} 
+            alt={product.title} 
             className="shopping-card-img"
             onError={(e) => { e.target.src = DUMMY_IMAGE; }}
         />
         <div className="shopping-card-info">
-            <div className="shopping-card-title">{product.name}</div>
-            <div className="shopping-card-price">{product.price || "Check Price"}</div>
+            <div className="shopping-card-title">{product.title}</div>
+            <div className={`shopping-card-price ${(isActive && highlightPrice) ? 'animate-pulse text-green-500 font-bold drop-shadow-md' : ''}`}>{product.price || "Check Price"}</div>
             <div className="shopping-cta">Shop Now</div>
         </div>
     </a>
@@ -48,11 +48,16 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
   const { localParticipant } = useLocalParticipant();
   const [transientMessage, setTransientMessage] = useState(null);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [highlightPrice, setHighlightPrice] = useState(false);
   const transientTimeoutRef = useRef(null);
 
   // Map LiveKit agent state to UI visual state
   // state can be: "listening" | "thinking" | "speaking" | "idle" (or undefined)
-  const visualState = state ? state.toUpperCase() : 'IDLE';
+  let visualState = 'IDLE';
+  if (state === 'listening') visualState = 'LISTENING';
+  else if (state === 'speaking') visualState = 'SPEAKING';
+  else if (state === 'thinking' || state === 'processing') visualState = 'THINKING';
+  else if (state === 'connecting') visualState = 'CONNECTING';
 
   const showTransientMessage = useCallback((text) => {
       if (isOpen) return; 
@@ -93,6 +98,44 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
     };
   }, [room, setLatestProducts, setActiveIndex, showTransientMessage]);
 
+  // Handle Transcription Events for Dynamic Presentation
+  useEffect(() => {
+    if (!room) return;
+
+    const handleTranscription = (segments, participant) => {
+      // Only listen to the AI agent, not the local user
+      if (participant.isLocal) return;
+
+      const text = segments.map(s => s.text).join(' ').toLowerCase();
+      
+      // 1. Dynamic Scrolling based on ordinal keywords
+      if (text.includes('first') || text.includes('one')) setActiveIndex(0);
+      else if (text.includes('second') || text.includes('two')) setActiveIndex(1);
+      else if (text.includes('third') || text.includes('three')) setActiveIndex(2);
+
+      // 2. Dynamic Price Highlighting
+      if (text.includes('price') || text.includes('₹') || text.includes('rupees') || text.includes('cost')) {
+        setHighlightPrice(true);
+        // Turn off highlight after 3 seconds
+        setTimeout(() => setHighlightPrice(false), 3000); 
+      }
+    };
+
+    room.on(RoomEvent.TranscriptionReceived, handleTranscription);
+    return () => room.off(RoomEvent.TranscriptionReceived, handleTranscription);
+  }, [room, setActiveIndex]);
+
+  // Handle Programmatic Carousel Scrolling
+  useEffect(() => {
+      if (carouselRef.current && latestProducts.length > 0) {
+          const width = carouselRef.current.clientWidth;
+          carouselRef.current.scrollTo({
+              left: activeIndex * width,
+              behavior: 'smooth'
+          });
+      }
+  }, [activeIndex, latestProducts, carouselRef]);
+
   // Handle interaction: toggle mic
   const handleInteraction = async () => {
     if (!localParticipant) return;
@@ -123,7 +166,11 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
               <div className="shopping-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
                   {latestProducts.map((p, idx) => (
                       <div key={idx} className="shopping-card-wrapper">
-                          <ShoppingCard product={p} />
+                          <ShoppingCard 
+                              product={p} 
+                              isActive={idx === activeIndex} 
+                              highlightPrice={highlightPrice} 
+                          />
                       </div>
                   ))}
               </div>
@@ -152,6 +199,7 @@ function AvatarInner({ isOpen, setIsOpen, latestProducts, setLatestProducts, act
                            visualState === 'THINKING' ? 'Thinking' :
                            visualState === 'SPEAKING' ? 'Speaking' :
                            visualState === 'LISTENING' ? 'Listening' :
+                           visualState === 'CONNECTING' ? 'Connecting' :
                            visualState}
                       </div>
 
