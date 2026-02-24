@@ -36,7 +36,7 @@ class CrawlRequest(BaseModel):
     url: str
 
 
-@app.post('/crawl')
+@app.post('/api/crawl')
 @observe(name="crawl-tigger")
 async def start_crawl(req: CrawlRequest, background_tasks: BackgroundTasks):
     # Trigger the crawler in background
@@ -55,14 +55,14 @@ async def start_crawl(req: CrawlRequest, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get('/crawl/status')
+@app.get('/api/crawl/status')
 def crawl_status(url: str):
     status = get_crawl_status(url)
     if not status:
         raise HTTPException(status_code=404, detail="No crawl found for that URL")
     return status
 
-@app.get('/crawl/count')
+@app.get('/api/crawl/count')
 def crawl_count(url: str):
     index_name = generate_index_name(url)
     count = count_index_docs(index_name)

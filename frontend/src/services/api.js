@@ -3,7 +3,7 @@ const API_BASE_URL =
 
 export const api = {
   startCrawl: async (url) => {
-    const response = await fetch(`${API_BASE_URL}/crawl`, {
+    const response = await fetch(`${API_BASE_URL}/api/crawl`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -16,7 +16,7 @@ export const api = {
 
   getCrawlStatus: async (url) => {
     const response = await fetch(
-      `${API_BASE_URL}/crawl/status?${new URLSearchParams({ url })}`,
+      `${API_BASE_URL}/api/crawl/status?${new URLSearchParams({ url })}`,
     );
     if (!response.ok) throw new Error("Failed to get status");
     return response.json();
@@ -24,7 +24,7 @@ export const api = {
 
   getCrawlCount: async (url) => {
     const response = await fetch(
-      `${API_BASE_URL}/crawl/count?${new URLSearchParams({ url })}`,
+      `${API_BASE_URL}/api/crawl/count?${new URLSearchParams({ url })}`,
     );
     if (!response.ok) throw new Error("Failed to get count");
     return response.json();

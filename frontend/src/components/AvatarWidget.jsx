@@ -25,7 +25,7 @@ const ShoppingCard = ({ product, isActive, highlightPrice, highlightDesc }) => {
         {product.description && (
           <div className="flex flex-col gap-1">
             <div
-              className={`shopping-card-desc text-sm ${isActive && highlightDesc ? "desc-highlight" : ""} ${!isExpanded ? "line-clamp-2" : ""}`}
+              className={`shopping-card-desc text-sm text-gray-600 transition-all ${isActive && highlightDesc ? "desc-highlight" : ""} ${!isExpanded ? "line-clamp-2" : ""}`}
             >
               {product.description}
             </div>
@@ -33,7 +33,7 @@ const ShoppingCard = ({ product, isActive, highlightPrice, highlightDesc }) => {
               onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
               className="text-xs text-blue-400 self-start font-semibold mt-1"
             >
-              {isExpanded ? "Less" : "More"}
+              {isExpanded ? "Show less" : "Read more"}
             </button>
           </div>
         )}
@@ -84,10 +84,8 @@ function AvatarInner({
   const [transientMessage, setTransientMessage] = useState(null);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [highlightPrice, setHighlightPrice] = useState(false);
-  const [highlightDesc, setHighlightDesc] = useState(false);
   const transientTimeoutRef = useRef(null);
   const priceTimerRef = useRef(null);
-  const descTimerRef = useRef(null);
 
   // Task 1: Live Captions State
   const [agentSubtitle, setAgentSubtitle] = useState("");
@@ -195,14 +193,6 @@ function AvatarInner({
 
       if (!newText.trim()) return; // No new words, skip
 
-      // 1. Auto-Scrolling — only trigger on NEWLY spoken ordinal words
-      if (newText.includes("first") || /\bone\b/.test(newText))
-        setActiveIndex(0);
-      else if (newText.includes("second") || /\btwo\b/.test(newText))
-        setActiveIndex(1);
-      else if (newText.includes("third") || /\bthree\b/.test(newText))
-        setActiveIndex(2);
-
       // 2. Price Highlighting — glow effect for 2500ms
       if (
         newText.includes("price") ||
@@ -218,24 +208,12 @@ function AvatarInner({
         );
       }
 
-      // 3. Description Highlighting — soft highlight for 3500ms
-      if (
-        newText.includes("details") ||
-        newText.includes("fabric") ||
-        newText.includes("description") ||
-        newText.includes("features")
-      ) {
-        if (descTimerRef.current) clearTimeout(descTimerRef.current);
-        setHighlightDesc(true);
-        descTimerRef.current = setTimeout(() => setHighlightDesc(false), 3500);
-      }
     };
 
     room.on(RoomEvent.TranscriptionReceived, handleTranscription);
     return () => {
       room.off(RoomEvent.TranscriptionReceived, handleTranscription);
       if (priceTimerRef.current) clearTimeout(priceTimerRef.current);
-      if (descTimerRef.current) clearTimeout(descTimerRef.current);
       if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
       lastTranscriptRef.current = "";
     };
@@ -260,31 +238,8 @@ function AvatarInner({
   // Handle interaction: toggle mic
   const handleInteraction = async () => {
     if (!localParticipant) return;
-
-    if (visualState === 'SPEAKING') {
-      // Force mic on to trigger backend interruption
-      await localParticipant.setMicrophoneEnabled(true);
-      setAgentSubtitle("Listening...");
-      
-      // Temporarily silence remote audio tracks to make it feel instantaneous
-      if (room && room.remoteParticipants) {
-        room.remoteParticipants.forEach(participant => {
-          participant.audioTrackPublications.forEach(pub => {
-            if (pub.track) {
-              pub.track.setVolume(0);
-              // Restore volume shortly after backend has had time to cancel
-              setTimeout(() => {
-                if (pub.track) pub.track.setVolume(1);
-              }, 1000);
-            }
-          });
-        });
-      }
-    } else {
-      // Standard toggle
-      const isMicEnabled = localParticipant.isMicrophoneEnabled;
-      await localParticipant.setMicrophoneEnabled(!isMicEnabled);
-    }
+    const isMicEnabled = localParticipant.isMicrophoneEnabled;
+    await localParticipant.setMicrophoneEnabled(!isMicEnabled);
   };
 
   const isShoppingMode = !isOpen && latestProducts.length > 0;
@@ -315,7 +270,7 @@ function AvatarInner({
                   alt={latestProducts[activeIndex].title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    e.target.src = DUMMY_IMAGE;
+                    e.target.src = "https://placehold.co/400x400?text=Image+Unavailable";
                   }}
                 />
                 {/* Gradient for seamless blend into bottom section */}
@@ -334,7 +289,6 @@ function AvatarInner({
                   product={latestProducts[activeIndex]} 
                   isActive={true} 
                   highlightPrice={highlightPrice} 
-                  highlightDesc={highlightDesc} 
                 />
               )}
             </div>
@@ -369,7 +323,7 @@ function AvatarInner({
                     alt={p.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.src = DUMMY_IMAGE;
+                      e.target.src = "https://placehold.co/400x400?text=Image+Unavailable";
                     }}
                   />
                 </div>

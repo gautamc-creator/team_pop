@@ -33,7 +33,9 @@ class ECommerceAgent(agents.Agent):
             Your tone is warm, highly conversational, and human-like. 
             When presenting search results, introduce them one by one. Use specific phrases like 'The first option is...', 'For the second one...', or 'The third pair...'. 
             Highlight key details naturally, explicitly mentioning the price and fabric as a real salesperson would. Keep responses snappy and under 3 sentences per product.
-            When describing a product, explicitly use the words 'price' or 'cost' when mentioning the price, and 'details' or 'features' when talking about the description, so our UI can sync with your speech."""
+            When describing a product, explicitly use the words 'price' or 'cost' when mentioning the price, and 'details' or 'features' when talking about the description, so our UI can sync with your speech.
+            If the user interrupts you mid-sentence and changes their mind or asks for something else, instantly discard what you were saying and use the search_products tool with their new criteria.
+            You are a Search Engine, not a chat bot. If the user asks for a product, you MUST use the search_products tool immediately. Do not answer from your own knowledge. Do not ask clarifying questions—just search."""
         )
 
     @function_tool
@@ -43,6 +45,7 @@ class ECommerceAgent(agents.Agent):
         Uses semantic search on both title and description for maximum accuracy.
         """
         print(f"Gemini triggered product search for: {query}")
+        print(f"TOOL CALLED: search_products with query: {query}")
         
         index_name = "sensesindia-v2"
         
@@ -80,7 +83,7 @@ class ECommerceAgent(agents.Agent):
                     "price": source.get("product_price"),
                     "image": source.get("main_image"),
                     "url": source.get("url"),
-                    "description": (desc[:80] + "...") if len(desc) > 80 else desc,
+                    "description": source.get("product_description", ""),
                 })
                 
                 # 2. Prepare data for Gemini to talk about
@@ -128,13 +131,7 @@ async def entrypoint(ctx: JobContext):
         await session.start(room=ctx.room, agent=agent_instance)
         print("Gemini Agent successfully joined the room!")
         
-        # EXPLICIT BARGE-IN HANDLING
-        @agent_instance.on("user_started_speaking")
-        def handle_user_started_speaking():
-            print("User interrupted! Canceling AI response...")
-            # If the AI is mid-sentence, this cuts the audio stream instantly
-            if session.chat and hasattr(session.chat, 'cancel_generation'):
-                 session.chat.cancel_generation()
+
         
         # CRITICAL FIX 2: Sleep for 1 second to prevent the `generate_reply` timeout race condition
         await asyncio.sleep(1.0) 
