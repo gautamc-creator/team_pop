@@ -128,6 +128,14 @@ async def entrypoint(ctx: JobContext):
         await session.start(room=ctx.room, agent=agent_instance)
         print("Gemini Agent successfully joined the room!")
         
+        # EXPLICIT BARGE-IN HANDLING
+        @agent_instance.on("user_started_speaking")
+        def handle_user_started_speaking():
+            print("User interrupted! Canceling AI response...")
+            # If the AI is mid-sentence, this cuts the audio stream instantly
+            if session.chat and hasattr(session.chat, 'cancel_generation'):
+                 session.chat.cancel_generation()
+        
         # CRITICAL FIX 2: Sleep for 1 second to prevent the `generate_reply` timeout race condition
         await asyncio.sleep(1.0) 
         
