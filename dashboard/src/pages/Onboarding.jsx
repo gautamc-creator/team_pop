@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Loader2, Sparkles, Globe, ArrowRight, Check } from 'lucide-react';
+import { CheckCircle2, Loader2, Sparkles, Globe, ArrowRight, Check , Bot } from 'lucide-react';
 import InstallSnippet from '../components/InstallSnippet';
 
 const STATES = {
@@ -89,13 +89,16 @@ export default function Onboarding() {
     setProgress(0);
     setErrorMsg('');
 
+    const currentTenantId = tenantId || `tenant_${Math.random().toString(36).substr(2, 9)}`;
+    if (!tenantId) setTenantId(currentTenantId);
+
     try {
       const res = await fetch('http://localhost:8080/api/onboard', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ domain: url, tenant_id: currentTenantId }),
       });
 
       if (!res.ok) {
