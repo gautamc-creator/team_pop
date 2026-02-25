@@ -28,7 +28,7 @@ function App() {
     } catch (err) {
       if (err instanceof TypeError) {
         // fetch() throws TypeError when the server is completely unreachable
-        setError('Could not reach the backend server. Make sure FastAPI is running on port 8000.');
+        setError('Could not reach the backend server. Make sure FastAPI is running on port 8080.');
       } else {
         setError(err.message);
       }

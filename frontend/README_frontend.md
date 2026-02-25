@@ -1,24 +1,25 @@
 # Team Pop Frontend
 
-The frontend for the Team Pop Voice Agent. Built with **React 19** and **Vite**, this application provides both the onboarding dashboard for creating an assistant and the actual widget that users interact with.
+The frontend for the Team Pop Voice Agent. Built with **React 19** and **Vite**, this application provides the embeddable `AvatarWidget`—a cinematic, voice-first UI component that connects directly to the LiveKit Cloud.
+
+_(Note: The onboarding flow now lives in the `/dashboard` application)._
 
 ## ✨ Features
 
-- **Get Started Timeline**: A guided 3-step vertical timeline (Enter URL -> Crawling -> Preview).
 - **Avatar Widget**: A cinematic, voice-first UI component.
-  - **Orb Mode**: A glowing, animated orb that reacts to "Listening", "Thinking", and "Speaking" states.
-  - **Chat Mode**: A simplifed, glassmorphism-styled chat window that opens on interaction.
+  - **LiveKit Integration**: Uses `@livekit/components-react` to establish a low-latency WebRTC room directly with the backend Python Worker.
+  - **Orb Mode**: A glowing, animated orb that reacts to "Listening", "Thinking", and "Speaking" states piped in real-time from the agent.
+  - **Chat Mode**: A simplifed, glassmorphism-styled chat window that opens on interaction, displaying product cards via Data Channels.
   - **Voice-First**: "Tap-to-Interrupt" logic, auto-open on speech, and real-time state visualization.
-- **Smart Logic**:
-  - **Simplified UI**: The widget is either **Open** (Full Chat) or **Closed** (Orb Only). No confusing intermediate states.
-  - **Auto-Scroll**: Chat history automatically snaps to the newest message.
+- **Dynamic UI Control**:
+  - The UI (e.g., active product focus) reacts natively to transcriptions and specific keywords uttered by the AI fashion expert.
 
 ## 🚀 Setup & Run
 
 ### Prerequisites
 
 - Node.js 18+
-- Backend running on port 8000
+- Backend running on port 8080 (to serve local LiveKit tokens).
 
 ### Installation
 
@@ -38,6 +39,7 @@ Access the app at `http://localhost:5173`.
 ### Production Build
 
 ```bash
+# Optional: To build the embeddable widget.js script bundle
 npm run build
 npm run preview
 ```
@@ -47,30 +49,26 @@ npm run preview
 ```
 src/
 ├── components/
-│   ├── AvatarWidget.jsx   # The core voice assistant widget
-│   └── VoiceRecorder.jsx  # Hook for handling microphone input
+│   ├── AvatarWidget.jsx   # The core LiveKit voice assistant widget
+│   └── ShoppingCard.jsx   # E-commerce product display passed via data channels
 ├── pages/
-│   └── GetStarted.jsx     # The 3-step onboarding timeline page
+│   └── Home.jsx           # Demo environment to embed the widget
 ├── styles/
-│   ├── AvatarWidget.css   # Animations, Glassmorphism, Layout
-│   └── GetStarted.css     # Timeline specific styles
-├── services/
-│   └── api.js             # API client for Backend (STT, TTS, Chat)
-└── App.jsx
+│   └── index.css          # Setup for Glassmorphism, Animations, Layout
+└── App.jsx                # Fetches Token -> Renders AvatarWidget
 ```
 
 ## 🔌 API Integration
 
-The frontend communicates with the backend via `src/services/api.js`.
+The frontend primarily communicates over WebRTC (`wss://`) using LiveKit.
 
-- `POST /stt`: Uploads audio blob, receives text.
-- `POST /chat`: Sends message history, receives `{ answer, summary, sources }`.
-- `POST /tts`: Sends text, receives audio blob (streamed).
-- `GET /crawl/*`: Polls for crawl status and verification.
+For the initial handshake, it fetches a JWT from the FastAPI backend:
+
+- `GET http://localhost:8080/get-livekit-token`: Receives the token and LiveKit URL to initialize the room.
 
 ## 🎨 Styling
 
-We use raw CSS with CSS variables for theming (see `index.css`).
+We use raw CSS with CSS variables for theming (see `index.css`) alongside Tailwind classes.
 
 - **Font**: "Space Grotesk" for a modern, tech-forward look.
 - **Glassmorphism**: Heavy use of `backdrop-filter: blur()` and transparent backgrounds.

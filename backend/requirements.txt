@@ -8,3 +8,4 @@ pyyaml
 livekit-agents
 livekit-plugins-google
 livekit-api
+firecrawl-py

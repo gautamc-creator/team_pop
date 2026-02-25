@@ -1,37 +1,41 @@
 # Team Pop Backend
 
-The FastAPI backend that powers the Voice Agent. It acts as the brain, orchestrating the connection between the user's voice and the knowledge base.
+The FastAPI backend that powers the Voice Agent. It acts as the brain and WebRTC connection point, orchestrating the connection between the user's live audio and the AI knowledge base.
 
 ## 🧠 Core Capabilities
 
-1.  **Crawl Orchestration**:
-    - Takes a URL, validates it, and triggers an **Elastic App Search Crawler** (via Docker).
-    - Polls the crawl status and verifies when documents are indexed.
-2.  **Voice Processing**:
-    - **STT**: Uses **AssemblyAI** to transcribe user audio with high accuracy.
-    - **TTS**: Uses **ElevenLabs** for ultra-realistic voice synthesis.
-3.  **Intelligence Layer**:
-    - **Retrieval**: Performs Hybrid Search (Keyword + Semantic) on **Elasticsearch** to find relevant context.
-    - **Generation**: Uses **Google Gemini 2.5 Flash** to generate concise, grounded answers.
-    - **Robustness**: Includes fallback regex parsing if the LLM fails to output valid JSON.
+1.  **Crawl Orchestration (`crawler_service.py`)**:
+    - Takes a target domain, triggers a crawl pipeline, and indexes the resulting chunks into **Elasticsearch**.
+    - Exposes state polling endpoints for the Dashboard to visualize progress.
+2.  **LiveKit Token Vending (`main.py`)**:
+    - Generates secure JWT access tokens for the frontend Avatar Widget to connect to LiveKit Cloud.
+3.  **LiveKit Voice Agent (`agent.py`)**:
+    - A persistent background worker that joins the LiveKit WebRTC room.
+    - Uses the **Google Gemini Multimodal Live API** (`gemini-2.5-flash`) for true voice-to-voice streaming.
+    - Executes asynchronous tool calls (e.g., semantic search via Elasticsearch) to ground its responses in the crawled catalog.
 
 ## 🛠️ Setup
 
 ### Environment Variables (.env)
 
-Create a `.env` file in the `backend/` directory:
+Create a `.env` file in the `backend/` directory. No STT/TTS keys (like AssemblyAI/ElevenLabs) are needed as the model natively handles audio.
 
 ```env
+# LIVEKIT WEBRTC
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your_livekit_key
+LIVEKIT_API_SECRET=your_livekit_secret
+
 # ELASTICSEARCH
 ELASTIC_URL=https://...
 ELASTIC_API_KEY=...
 ELASTIC_INFERENCE_ID=.elser-2-elastic # Optional
 
-# AI SERVICES
-ASSEMBLY_API_KEY=...
+# GOOGLE AI
 GEMINI_API_KEY=...
-ELEVENLABS_API_KEY=...
-VOICE_ID=... # ElevenLabs Voice ID
+
+#FIRECRAWL 
+FIRECRAWL_API_KEY=...
 ```
 
 ### Run Locally
@@ -44,39 +48,24 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run Server
-uvicorn app.main:app --reload
+# Run Server (Must be on 8080 to match frontend/dashboard configs)
+uvicorn app.main:app --port 8080 --reload
 ```
 
 ## 📡 API Endpoints
 
 ### Crawling
 
-- `POST /crawl`: Start crawling a URL.
-- `GET /crawl/status`: Check if the crawl is running, completed, or failed.
-- `GET /crawl/count`: Get the number of indexed documents.
+- `POST /api/onboard`: Start onboarding/crawling a URL context.
+- `GET /api/job/{job_id}`: Poll background task status, returns JSON state indicating progress or completion.
 
-### Interaction
+### LiveKit WebRTC
 
-- `POST /stt`: Accepts `multipart/form-data` audio file. Returns `{"text": "..."}`.
-- `POST /chat`: Accepts prompt and history. Returns:
-  ```json
-  {
-    "answer": "Full answer with markdown...",
-    "summary": "Short summary for TTS...",
-    "sources": ["url1", "url2"]
-  }
-  ```
-- `POST /tts`: Accepts text. Returns audio stream (`audio/mpeg`).
+- `GET /get-livekit-token`: Returns `{"token": "jwt...", "serverUrl": "wss..."}` for the frontend connection. Note: The actual audio streaming happens over UDP WebRTC via the LiveKit Cloud, not over HTTP endpoints.
 
 ## ⚙️ Key Files
 
-- `app/main.py`: Application entry point and route definitions.
-- `app/crawler_service.py`: Logic for managing the Elastic Crawler.
-- `app/get_llm_context.py`: Handles RAG (Retrieval Augmented Generation) logic.
-- `app/gemini_client.py`: Wrapper for Google Gemini API interactions.
-
-## 📝 Notes
-
-- The chat endpoint uses a system prompt that enforces strict JSON output from Gemini.
-- If JSON parsing fails (rare), a regex fallback extracts the answer to prevent user-facing errors.
+- `app/main.py`: FastAPI entry point and route definitions.
+- `app/crawler_service.py`: Logic for managing extraction and index insertion.
+- `app/elastic.py`: Setup and configuration for the Async Elasticsearch client.
+- `app/agent.py`: The `livekit.agents` worker script that defines the Gemini Voice Agent, its persona, and its tools (`search_products`).

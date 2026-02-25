@@ -1,135 +1,118 @@
-import docker
-import yaml
 import os
-import uuid 
-import shutil
-from app.elastic import generate_index_name , create_client_index
-from langfuse import observe
+import uuid
+import json
+from datetime import datetime
+from firecrawl import FirecrawlApp
+from elasticsearch import Elasticsearch
+from elasticsearch.helpers import bulk
 from dotenv import load_dotenv
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-try:
-    docker_client = docker.from_env()
-except Exception as e:
-    logger.error(f"Docker not detected : {e}")
-    docker_client = None
+# In-memory DB for the demo (will upgrade to Postgres/Redis later)
+JOB_STORE = {}
 
-# In-memory crawl status for local demo
-# key: normalized url, value: dict(status, index, error)
-CRAWL_STATUS = {}
+# Initialize Clients
+es_client = Elasticsearch(
+    os.getenv("ELASTIC_URL"),
+    api_key=os.getenv("ELASTIC_API_KEY")
+)
+firecrawl_app = FirecrawlApp(api_key=os.getenv("FIRECRAWL_API_KEY"))
 
-def normailizeUrl(url: str) -> str:
-    return url[:-1] if url.endswith('/') else url
-
-def set_crawl_status(url: str, status: str, index: str | None = None, error: str | None = None):
-    CRAWL_STATUS[normailizeUrl(url)] = {
-        "status": status,
-        "index": index,
-        "error": error
-    }
-
-def get_crawl_status(url: str):
-    return CRAWL_STATUS.get(normailizeUrl(url))
-
-@observe(name="docker-crawler-execution")
-def run_elastic_crawler(target_url : str):
-    if not docker_client:
-        logger.error("Skipping crawl : Docker unavailable")
-        set_crawl_status(target_url, "failed", error="Docker unavailable on host")
-        return
-    
-
-    
-    formatted_url = normailizeUrl(target_url)
-    logger.info(f"Normalized URL: {formatted_url}")
-    
-    # index creation
-    index_name = generate_index_name(formatted_url)
-    create_client_index(index_name)
-    set_crawl_status(formatted_url, "running", index=index_name)
-    
-    crawl_id = str(uuid.uuid4())
-    
-    # Crawler config
-    config_data = {
-        "output_sink": "elasticsearch",
-        "output_index": index_name,
-        "elasticsearch": {
-            "host": os.getenv("ELASTIC_URL"),
-            "api_key": os.getenv("ELASTIC_API_KEY"),
-            "port":"443",
-            "pipeline_enabled": False, 
-            "ssl_verification_mode": "none"
-        },
-        "domains": [
-            {
-                "url": formatted_url,
-                "max_crawl_depth":2
+# LLM Extraction Schema
+PRODUCT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "products": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "price": {"type": "string"},
+                    "description": {"type": "string"},
+                    "image": {"type": "string", "format": "uri"},
+                    "url": {"type": "string", "format": "uri"}
+                },
+                "required": ["title", "price", "description", "url"]
             }
-        ]
+        }
+    },
+    "required": ["products"]
+}
+
+def create_job(tenant_id: str, domain: str) -> str:
+    job_id = str(uuid.uuid4())
+    JOB_STORE[job_id] = {
+        "id": job_id,
+        "tenant_id": tenant_id,
+        "domain": domain,
+        "status": "pending",
+        "product_count": 0,
+        "error": None,
+        "created_at": datetime.utcnow().isoformat()
     }
-    
-    # Temporary directory for the config
-    temp_dir = os.path.abspath(f"temp_crawls/{crawl_id}")
-    os.makedirs(temp_dir, exist_ok=True)
-    config_path = os.path.join(temp_dir, "crawler.yml")
+    return job_id
 
-    with open(config_path, 'w') as f:
-        yaml.dump(config_data, f)
-
-    logger.info(f"Starting Crawler for {formatted_url} (ID: {crawl_id})")
+def process_onboarding(job_id: str, domain: str, tenant_id: str):
+    JOB_STORE[job_id]["status"] = "processing"
     
-    
-    # Run the elastic crawler container 
     try:
-        container = docker_client.containers.run(
-            image="docker.elastic.co/integrations/crawler:latest",
-            # The crawler requires the config file to be passed as an argument
-            # FORCE bash to execute the string as a command 
-            entrypoint="/bin/bash",
-            command=["-c", "bin/crawler crawl /crawler.yml"],
-            volumes={
-                # Mount our generated config to /crawler.yml inside container
-                config_path: {'bind': '/crawler.yml', 'mode': 'ro'}
-            },
-            detach=True,
-            remove=False, # Auto-delete container when done
-            # Use 'host' network if Elastic is on localhost, otherwise 'bridge' is fine
-            network_mode="host" if "localhost" in os.getenv("ELASTIC_URL") or "127.0.0.1" in os.getenv("ELASTIC_URL") else "bridge"
+        # 1. LIVE SCRAPE VIA FIRECRAWL
+        print(f"[{job_id}] Starting live crawl for {domain}...")
+        crawl_result = firecrawl_app.crawl_url(
+            url=domain,
+            params={
+                "limit": 200, # Keep limit low for fast live demo
+                "extract": {
+                    "schema": PRODUCT_SCHEMA,
+                    "systemPrompt": "Extract all visible e-commerce products. Include title, price, full description, and image URL."
+                }
+            }
         )
-        logger.info(f"Container started: {container.id[:10]}. Waiting for logs")
         
-        # To capture the logs
-        result = container.wait()
-        logs = container.logs().decode('utf-8')
+        # 2. PARSE RESULTS
+        all_products = []
+        # Firecrawl returns a list of dictionaries for crawled pages
+        for page in crawl_result:
+            if "extracted_content" in page and page["extracted_content"]:
+                # Sometimes it returns a string, sometimes a dict
+                content = page["extracted_content"]
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except:
+                        continue
+                all_products.extend(content.get("products", []))
         
-        logger.info("\n" + "="*20 + " CRAWLER LOGS " + "="*20)
-        logger.info(logs)
-        logger.info("="*54 + "\n")
-        
-        # cleanup
-        container.remove()
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        
-        if result['StatusCode'] != 0:
-            logger.error(f"❌ Crawler exited with error code {result['StatusCode']}")
-            raise Exception(f"Crawler failed: {logs}")
+        if not all_products:
+            raise Exception("No products found during crawl.")
 
-        set_crawl_status(formatted_url, "completed", index=index_name)
-        return {"status": "completed", "index": index_name, "logs": logs}
+        print(f"[{job_id}] Extracted {len(all_products)} products. Ingesting to Elastic...")
+
+        # 3. BULK INGEST TO ELASTICSEARCH
+        es_docs = []
+        for p in all_products:
+            doc_id = f"{tenant_id}_{hash(p['url'])}"
+            # Combine fields for the semantic_text embedding target
+            p["content_semantic"] = f"{p.get('title', '')} {p.get('description', '')}"
+            p["tenant_id"] = tenant_id
+            
+            es_docs.append({
+                "_op_type": "index",
+                "_index": "sensesindia-products", # Update index name if needed
+                "_id": doc_id,
+                "_source": p
+            })
+            
+        bulk(es_client, es_docs)
         
-        
+        # 4. MARK SUCCESS
+        JOB_STORE[job_id]["status"] = "completed"
+        JOB_STORE[job_id]["product_count"] = len(es_docs)
+        print(f"[{job_id}] Onboarding complete!")
 
     except Exception as e:
-        logger.error(f"❌ Crawl failed: {e}")
-        # Clean up temp dir if fail
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        set_crawl_status(formatted_url, "failed", index=index_name, error=str(e))
-        raise e
-    
-    
+        print(f"[{job_id}] Error: {str(e)}")
+        JOB_STORE[job_id]["status"] = "failed"
+        JOB_STORE[job_id]["error"] = str(e)

@@ -10,7 +10,7 @@ import json
 import logging
 from langfuse import get_client, observe
 from fastapi import BackgroundTasks
-from app.crawler_service import run_elastic_crawler, set_crawl_status, get_crawl_status
+from app.crawler_service import create_job, process_onboarding, JOB_STORE
 from app.elastic import generate_index_name, count_index_docs
 from livekit.api import AccessToken, VideoGrants
 
@@ -32,44 +32,25 @@ app.add_middleware(
 )
 
 
-class CrawlRequest(BaseModel):
-    url: str
+class OnboardRequest(BaseModel):
+    domain: str
+    tenant_id: str
 
 
-@app.post('/api/crawl')
-@observe(name="crawl-tigger")
-async def start_crawl(req: CrawlRequest, background_tasks: BackgroundTasks):
-    # Trigger the crawler in background
-    
-    try:
-       set_crawl_status(req.url, "pending", index=generate_index_name(req.url))
-       background_tasks.add_task(run_elastic_crawler, req.url)
-       
-       index_name = generate_index_name(req.url)
-       return {
-            "message": "Crawl job started", 
-            "target_url": req.url,
-            "target_index": index_name
-       } 
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/onboard")
+async def start_onboarding(req: OnboardRequest, background_tasks: BackgroundTasks):
+    job_id = create_job(req.tenant_id, req.domain)
+    # Fire the live scrape in the background
+    background_tasks.add_task(process_onboarding, job_id, req.domain, req.tenant_id)
+    return {"job_id": job_id, "status": "processing"}
 
-@app.get('/api/crawl/status')
-def crawl_status(url: str):
-    status = get_crawl_status(url)
-    if not status:
-        raise HTTPException(status_code=404, detail="No crawl found for that URL")
-    return status
 
-@app.get('/api/crawl/count')
-def crawl_count(url: str):
-    index_name = generate_index_name(url)
-    count = count_index_docs(index_name)
-    return {
-        "index": index_name,
-        "count": count
-    }
+@app.get("/api/job/{job_id}")
+async def get_job_status(job_id: str):
+    job = JOB_STORE.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @app.get('/get-livekit-token')
