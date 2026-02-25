@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Loader2, Sparkles, Globe, ArrowRight, Check , Bot } from 'lucide-react';
+import { CheckCircle2, Loader2, Sparkles, Globe, ArrowRight, Bot } from 'lucide-react';
 import InstallSnippet from '../components/InstallSnippet';
 
 const STATES = {

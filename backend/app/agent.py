@@ -44,8 +44,6 @@ class ECommerceAgent(agents.Agent):
         Searches the sensesindia-v2 index. 
         Uses semantic search on both title and description for maximum accuracy.
         """
-        print(f"Gemini triggered product search for: {query}")
-        print(f"TOOL CALLED: search_products with query: {query}")
         
         index_name = "sensesindia-v2"
         

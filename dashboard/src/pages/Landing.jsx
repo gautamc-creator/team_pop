@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bot, ArrowRight, Sparkles, Zap } from 'lucide-react';
+import { Bot, Sparkles, Zap } from 'lucide-react';
 
 export default function Landing() {
   const [url, setUrl] = useState('');
